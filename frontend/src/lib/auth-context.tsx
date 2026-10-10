@@ -163,11 +163,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Ignore network errors during signout
     }
     api.clearToken();
-    localStorage.removeItem('trimz_roles');
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('trimz_token');
+      localStorage.removeItem('trimz_user');
+      localStorage.removeItem('trimz_roles');
+      localStorage.removeItem('trimz_permissions');
+    }
     setUser(null);
     setRoles([]);
     setPermissions([]);
-    router.push('/login');
+    router.replace('/login');
   };
 
   return (

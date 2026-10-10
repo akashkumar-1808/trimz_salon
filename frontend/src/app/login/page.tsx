@@ -1,15 +1,30 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { Lock, Mail, ArrowRight, ShieldCheck, UserCheck, AlertCircle, Loader2 } from 'lucide-react';
 
 export default function LoginPage() {
-  const { login } = useAuth();
+  const { user, loading, hasPermission, login } = useAuth();
+  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  // Authenticated users visiting /login are redirected to portal
+  useEffect(() => {
+    if (!loading && user) {
+      if (user.is_owner || hasPermission('dashboard.view') || hasPermission('*')) {
+        router.replace('/portal/dashboard');
+      } else if (hasPermission('billing.view') || hasPermission('billing.create')) {
+        router.replace('/portal/billing');
+      } else {
+        router.replace('/portal/dashboard');
+      }
+    }
+  }, [user, loading, router, hasPermission]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -19,15 +34,30 @@ export default function LoginPage() {
     }
 
     setError(null);
-    setLoading(true);
+    setSubmitting(true);
 
     try {
       await login(email, password);
     } catch (err: any) {
       setError(err.message || 'Login failed. Please check your credentials.');
-      setLoading(false);
+      setSubmitting(false);
     }
   };
+
+  // Wait for authentication initialization before showing form or redirecting
+  if (loading || user) {
+    return (
+      <div className="min-h-screen bg-workspace-bg flex flex-col items-center justify-center">
+        <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center text-white font-serif font-black text-2xl mb-4 shadow-md shadow-primary/20 animate-pulse">
+          T.
+        </div>
+        <div className="flex items-center gap-2 text-text-secondary text-sm font-medium">
+          <Loader2 className="w-4 h-4 animate-spin text-primary" />
+          <span>{loading ? 'Verifying session...' : 'Redirecting to portal...'}</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-workspace-bg flex flex-col items-center justify-center p-4 relative overflow-hidden">
@@ -92,10 +122,10 @@ export default function LoginPage() {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={submitting}
               className="w-full mt-2 py-3 px-4 rounded-xl bg-primary hover:bg-primary-hover text-white font-medium text-sm tracking-wide transition-all shadow-sm flex items-center justify-center gap-2 disabled:opacity-50"
             >
-              {loading ? (
+              {submitting ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin text-white" />
                   <span>Authenticating...</span>

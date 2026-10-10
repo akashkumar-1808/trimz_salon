@@ -19,9 +19,7 @@ import {
   BarChart3,
   FileText, 
   Settings,
-  LogOut,
-  Sparkles,
-  ExternalLink
+  LogOut
 } from 'lucide-react';
 
 export default function Sidebar() {
@@ -169,22 +167,6 @@ export default function Sidebar() {
             </Link>
           );
         })}
-
-        {/* Public Website External Link */}
-        <div className="pt-3 px-3 pb-1 text-[10px] font-semibold tracking-widest text-[#737373] uppercase">
-          EXTERNAL
-        </div>
-        <Link
-          href="/"
-          target="_blank"
-          className="flex items-center justify-between px-3 py-2 rounded-xl text-[13px] font-medium text-[#A3A3A3] hover:text-white hover:bg-[#1C1C1C] transition-all"
-        >
-          <span className="flex items-center gap-3">
-            <Sparkles className="w-4 h-4 text-[#8A8A8A]" />
-            <span>Customer Site</span>
-          </span>
-          <ExternalLink className="w-3.5 h-3.5 text-[#666666]" />
-        </Link>
       </nav>
 
       {/* User Footer Profile */}
