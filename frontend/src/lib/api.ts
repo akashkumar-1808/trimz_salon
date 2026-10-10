@@ -258,7 +258,27 @@ class ApiClient {
       headers,
     });
     if (!res.ok) {
-      throw new Error('Failed to export CSV');
+      const errJson = await res.json().catch(() => ({}));
+      throw new Error(errJson.detail || 'Failed to export CSV');
+    }
+    return res.blob();
+  }
+
+  async exportSalesPdf(startDate?: string, endDate?: string): Promise<Blob> {
+    const token = this.getToken();
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const params = new URLSearchParams();
+    if (startDate) params.append('start_date', startDate);
+    if (endDate) params.append('end_date', endDate);
+    const qs = params.toString() ? `?${params.toString()}` : '';
+
+    const res = await fetch(`${API_BASE}/reports/export/sales-pdf${qs}`, {
+      headers,
+    });
+    if (!res.ok) {
+      const errJson = await res.json().catch(() => ({}));
+      throw new Error(errJson.detail || 'Failed to export PDF');
     }
     return res.blob();
   }

@@ -33,16 +33,27 @@ export default function ReportsPage() {
   const [dailyData, setDailyData] = useState<any>(null);
   const [loadingDaily, setLoadingDaily] = useState(false);
 
-  // Sales Summary State
+  // Sales Summary State (unapplied datepicker values)
   const [startDate, setStartDate] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() - 29);
     return d.toISOString().split('T')[0];
   });
   const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
+
+  // CRITICAL: Applied filter date range (Single Source of Truth for report data and both exports)
+  const [appliedStartDate, setAppliedStartDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 29);
+    return d.toISOString().split('T')[0];
+  });
+  const [appliedEndDate, setAppliedEndDate] = useState(() => new Date().toISOString().split('T')[0]);
+
   const [summaryData, setSummaryData] = useState<any>(null);
   const [loadingSummary, setLoadingSummary] = useState(false);
   const [exportingCsv, setExportingCsv] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
+  const [exportNotice, setExportNotice] = useState<string | null>(null);
 
   // Customer History State
   const [customerSearch, setCustomerSearch] = useState('');
@@ -64,12 +75,15 @@ export default function ReportsPage() {
     }
   };
 
-  // Fetch Sales Summary
+  // Fetch Sales Summary (updates applied range state)
   const fetchSalesSummary = async (s: string, e: string) => {
     setLoadingSummary(true);
+    setExportNotice(null);
     try {
       const data = await api.getSalesSummary(s, e);
       setSummaryData(data);
+      setAppliedStartDate(s);
+      setAppliedEndDate(e);
     } catch (err: any) {
       console.error('Failed to load summary report:', err);
     } finally {
@@ -77,23 +91,36 @@ export default function ReportsPage() {
     }
   };
 
+  const handleApplyFilter = () => {
+    if (startDate > endDate) {
+      alert('From Date cannot be later than To Date');
+      return;
+    }
+    fetchSalesSummary(startDate, endDate);
+  };
+
   useEffect(() => {
     if (activeTab === 'daily') {
       fetchDailyClosing(dailyDate);
     } else if (activeTab === 'summary') {
-      fetchSalesSummary(startDate, endDate);
+      fetchSalesSummary(appliedStartDate, appliedEndDate);
     }
   }, [activeTab]);
 
-  // Handle CSV Export
+  // Handle CSV Export (Strictly uses applied filter date range)
   const handleExportCsv = async () => {
+    if (!summaryData || summaryData.completed_bills === 0 || summaryData.total_bills === 0) {
+      alert('No sales data found for the applied date range. Nothing to export.');
+      return;
+    }
     setExportingCsv(true);
+    setExportNotice(null);
     try {
-      const blob = await api.exportSalesCsv(startDate, endDate);
+      const blob = await api.exportSalesCsv(appliedStartDate, appliedEndDate);
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `trimz_sales_export_${startDate}_to_${endDate}.csv`;
+      a.download = `trimz-daily-sales-${appliedStartDate}-to-${appliedEndDate}.csv`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -102,6 +129,31 @@ export default function ReportsPage() {
       alert(`Export failed: ${err.message || 'Error downloading CSV'}`);
     } finally {
       setExportingCsv(false);
+    }
+  };
+
+  // Handle PDF Export (Strictly uses applied filter date range)
+  const handleExportPdf = async () => {
+    if (!summaryData || summaryData.completed_bills === 0 || summaryData.total_bills === 0) {
+      alert('No sales data found for the applied date range. Nothing to export.');
+      return;
+    }
+    setExportingPdf(true);
+    setExportNotice(null);
+    try {
+      const blob = await api.exportSalesPdf(appliedStartDate, appliedEndDate);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `trimz-daily-sales-${appliedStartDate}-to-${appliedEndDate}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err: any) {
+      alert(`Export failed: ${err.message || 'Error downloading PDF'}`);
+    } finally {
+      setExportingPdf(false);
     }
   };
 
@@ -190,18 +242,37 @@ export default function ReportsPage() {
           </div>
 
           {activeTab === 'summary' && hasPermission('reports.export') && (
-            <button
-              onClick={handleExportCsv}
-              disabled={exportingCsv}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-workspace-border hover:bg-workspace-hover text-text-primary font-medium text-xs transition-all shadow-sm disabled:opacity-50"
-            >
-              {exportingCsv ? (
-                <Loader2 className="w-4 h-4 animate-spin text-primary" />
-              ) : (
-                <ArrowDownToLine className="w-4 h-4 text-emerald-600" />
-              )}
-              <span>Export CSV</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleExportCsv}
+                disabled={exportingCsv || exportingPdf}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white border border-workspace-border hover:bg-workspace-hover text-text-primary font-medium text-xs transition-all shadow-sm disabled:opacity-50"
+                title={`Export CSV for applied range (${appliedStartDate} to ${appliedEndDate})`}
+              >
+                {exportingCsv ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                ) : (
+                  <ArrowDownToLine className="w-4 h-4 text-emerald-600" />
+                )}
+                <span>Export CSV</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleExportPdf}
+                disabled={exportingCsv || exportingPdf}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-primary hover:bg-primary-hover text-white font-medium text-xs transition-all shadow-sm disabled:opacity-50"
+                title={`Export PDF for applied range (${appliedStartDate} to ${appliedEndDate})`}
+              >
+                {exportingPdf ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-white" />
+                ) : (
+                  <FileText className="w-4 h-4 text-white" />
+                )}
+                <span>Export PDF</span>
+              </button>
+            </div>
           )}
         </div>
 
@@ -366,21 +437,35 @@ export default function ReportsPage() {
                   className="bg-workspace-bg border border-workspace-border rounded-xl px-3 py-1.5 text-xs text-text-primary focus:outline-none focus:border-text-primary focus:bg-white"
                 />
                 <button
-                  onClick={() => fetchSalesSummary(startDate, endDate)}
-                  className="px-4 py-1.5 rounded-xl bg-primary hover:bg-primary-hover text-white font-medium text-xs transition-all shadow-sm"
+                  type="button"
+                  onClick={handleApplyFilter}
+                  disabled={loadingSummary}
+                  className="px-4 py-1.5 rounded-xl bg-primary hover:bg-primary-hover text-white font-medium text-xs transition-all shadow-sm disabled:opacity-50"
                 >
-                  Apply Filter
+                  {loadingSummary ? 'Applying...' : 'Apply Filter'}
                 </button>
               </div>
-              <span className="text-xs text-text-muted font-mono">
-                {summaryData?.total_bills || 0} total transactions in period
-              </span>
+              <div className="text-xs text-text-muted font-mono flex items-center gap-2">
+                <span>Applied: <strong className="text-text-primary font-semibold">{appliedStartDate} &ndash; {appliedEndDate}</strong></span>
+                <span>&bull;</span>
+                <span>{summaryData?.completed_bills || 0} completed bill(s)</span>
+              </div>
             </div>
 
             {loadingSummary ? (
               <div className="h-64 flex flex-col items-center justify-center gap-3">
                 <Loader2 className="w-8 h-8 animate-spin text-primary" />
                 <span className="text-xs text-text-muted font-mono">Aggregating date range revenue...</span>
+              </div>
+            ) : summaryData && (summaryData.completed_bills === 0 || summaryData.total_bills === 0) ? (
+              <div className="p-12 text-center bg-white rounded-2xl border border-workspace-border shadow-sm space-y-3">
+                <div className="w-12 h-12 rounded-2xl bg-workspace-bg border border-workspace-border flex items-center justify-center mx-auto text-text-muted">
+                  <Calendar className="w-6 h-6 text-text-muted" />
+                </div>
+                <h3 className="font-bold text-sm text-text-primary">No Sales Recorded for Selected Period</h3>
+                <p className="text-xs text-text-muted max-w-md mx-auto">
+                  No completed transactions were found between <span className="font-mono font-semibold text-text-secondary">{appliedStartDate}</span> and <span className="font-mono font-semibold text-text-secondary">{appliedEndDate}</span>. Select a different date range or record sales at POS to generate reports.
+                </p>
               </div>
             ) : summaryData ? (
               <>

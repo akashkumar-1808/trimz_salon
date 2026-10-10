@@ -11,6 +11,7 @@ class DailySalesBreakdown(BaseModel):
     cash_amount: Decimal
     upi_amount: Decimal
     card_amount: Decimal
+    payment_breakdown: Optional[str] = None
 
 class SalesSummaryReport(BaseModel):
     start_date: str
