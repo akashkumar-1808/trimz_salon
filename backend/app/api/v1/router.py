@@ -8,6 +8,8 @@ from app.api.v1.billing import router as billing_router
 from app.api.v1.invoices import router as invoices_router
 from app.api.v1.dashboard import router as dashboard_router
 from app.api.v1.audit import router as audit_router
+from app.api.v1.settings import router as settings_router
+from app.api.v1.reports import router as reports_router
 
 api_router = APIRouter(prefix="/v1")
 
@@ -20,3 +22,5 @@ api_router.include_router(billing_router)
 api_router.include_router(invoices_router)
 api_router.include_router(dashboard_router)
 api_router.include_router(audit_router)
+api_router.include_router(settings_router)
+api_router.include_router(reports_router)

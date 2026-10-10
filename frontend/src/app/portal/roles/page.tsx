@@ -21,12 +21,24 @@ export default function RolesRbacPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [rls, perms] = await Promise.all([
+      const [rls, rawPerms] = await Promise.all([
         api.getRoles(),
         api.getPermissions(),
       ]);
       setRoles(rls);
-      setPermissionGroups(perms);
+      
+      const groups: Record<string, Permission[]> = {};
+      if (Array.isArray(rawPerms)) {
+        rawPerms.forEach((item: any) => {
+          if (item.module && Array.isArray(item.permissions)) {
+            groups[item.module] = item.permissions;
+          } else if (item.module) {
+            if (!groups[item.module]) groups[item.module] = [];
+            groups[item.module].push(item);
+          }
+        });
+      }
+      setPermissionGroups(groups);
     } catch (err) {
       console.error('Error loading RBAC settings:', err);
     } finally {

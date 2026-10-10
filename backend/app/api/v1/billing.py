@@ -4,7 +4,7 @@ from typing import List, Optional
 from uuid import UUID
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, or_
 from app.core.database import get_db
 from app.models.business import Business
 from app.models.customer import Customer
@@ -263,3 +263,135 @@ async def checkout(
         invoice=InvoiceOut.model_validate(new_invoice),
         receipt_text=receipt
     )
+
+@router.get("/sales", response_model=List[SaleOut])
+async def list_sales(
+    search: Optional[str] = None,
+    status: Optional[str] = None,
+    limit: int = 50,
+    offset: int = 0,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission("billing.view"))
+):
+    stmt = (
+        select(Sale)
+        .where(Sale.business_id == current_user.business_id)
+        .order_by(Sale.created_at.desc())
+    )
+    if status:
+        stmt = stmt.where(Sale.status == status)
+    if search:
+        s = f"%{search.strip()}%"
+        stmt = stmt.join(Customer, Sale.customer_id == Customer.id, isouter=True).where(
+            or_(
+                Sale.sale_number.ilike(s),
+                Customer.name.ilike(s),
+                Customer.phone.ilike(s)
+            )
+        )
+    stmt = stmt.limit(limit).offset(offset)
+    result = await db.execute(stmt)
+    return result.scalars().all()
+
+@router.get("/sales/{sale_id}", response_model=SaleOut)
+async def get_sale(
+    sale_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission("billing.view"))
+):
+    result = await db.execute(
+        select(Sale).where(
+            Sale.business_id == current_user.business_id,
+            Sale.id == sale_id
+        )
+    )
+    sale = result.scalar_one_or_none()
+    if not sale:
+        raise HTTPException(status_code=404, detail="Sale not found")
+    return sale
+
+@router.get("/sales/{sale_id}/receipt")
+async def get_sale_receipt(
+    sale_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission("billing.view"))
+):
+    result = await db.execute(
+        select(Sale).where(
+            Sale.business_id == current_user.business_id,
+            Sale.id == sale_id
+        )
+    )
+    sale = result.scalar_one_or_none()
+    if not sale:
+        raise HTTPException(status_code=404, detail="Sale not found")
+    
+    biz_res = await db.execute(select(Business).where(Business.id == current_user.business_id))
+    business = biz_res.scalar_one_or_none()
+    
+    cust_res = await db.execute(select(Customer).where(Customer.id == sale.customer_id))
+    customer = cust_res.scalar_one_or_none()
+    
+    inv_res = await db.execute(select(Invoice).where(Invoice.sale_id == sale.id))
+    invoice = inv_res.scalar_one_or_none()
+
+    receipt_text = generate_thermal_receipt_text(business, sale, invoice, customer)
+    return {"receipt_text": receipt_text}
+
+@router.post("/sales/{sale_id}/cancel", response_model=SaleOut)
+async def cancel_sale(
+    sale_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission("billing.cancel"))
+):
+    result = await db.execute(
+        select(Sale).where(
+            Sale.business_id == current_user.business_id,
+            Sale.id == sale_id
+        )
+    )
+    sale = result.scalar_one_or_none()
+    if not sale:
+        raise HTTPException(status_code=404, detail="Sale not found")
+    if sale.status == "CANCELLED":
+        raise HTTPException(status_code=400, detail="Sale has already been cancelled")
+
+    sale.status = "CANCELLED"
+
+    # Void associated invoice
+    inv_res = await db.execute(select(Invoice).where(Invoice.sale_id == sale.id))
+    invoice = inv_res.scalar_one_or_none()
+    if invoice:
+        invoice.status = "VOID"
+
+    # Mark payments as refunded
+    pm_res = await db.execute(select(Payment).where(Payment.sale_id == sale.id))
+    payments = pm_res.scalars().all()
+    for p in payments:
+        p.status = "REFUNDED"
+
+    # Revert customer metrics
+    cust_res = await db.execute(select(Customer).where(Customer.id == sale.customer_id))
+    customer = cust_res.scalar_one_or_none()
+    if customer:
+        customer.total_visits = max(0, customer.total_visits - 1)
+        customer.total_spend = max(Decimal("0.00"), customer.total_spend - sale.total_amount)
+        points_to_revert = int(sale.total_amount // 100)
+        customer.loyalty_points = max(0, customer.loyalty_points - points_to_revert)
+
+    # Audit log
+    db.add(AuditLog(
+        business_id=current_user.business_id,
+        user_id=current_user.id,
+        action="SALE_CANCELLED",
+        entity_name="sale",
+        entity_id=sale.id,
+        details={
+            "sale_number": sale.sale_number,
+            "refunded_amount": str(sale.total_amount)
+        }
+    ))
+
+    await db.commit()
+    await db.refresh(sale)
+    return sale

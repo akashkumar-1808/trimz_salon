@@ -13,6 +13,8 @@ import {
   ShieldCheck, 
   UserCheck, 
   History,
+  BarChart3,
+  Settings,
   LogOut,
   Sparkles,
   ExternalLink
@@ -54,6 +56,12 @@ export default function Sidebar() {
       permission: 'billing.view',
     },
     {
+      name: 'Reports & EOD',
+      href: '/portal/reports',
+      icon: BarChart3,
+      permission: 'reports.view',
+    },
+    {
       name: 'Staff & Team',
       href: '/portal/employees',
       icon: UserCheck,
@@ -64,6 +72,12 @@ export default function Sidebar() {
       href: '/portal/roles',
       icon: ShieldCheck,
       permission: 'roles.view',
+    },
+    {
+      name: 'Salon Settings',
+      href: '/portal/settings',
+      icon: Settings,
+      permission: 'settings.view',
     },
     {
       name: 'Audit Logs',

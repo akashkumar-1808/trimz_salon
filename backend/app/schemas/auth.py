@@ -20,6 +20,7 @@ class PermissionOut(BaseModel):
 class RoleOut(BaseModel):
     id: UUID
     name: str
+    slug: Optional[str] = None
     description: Optional[str] = None
     is_system: bool = False
     permissions: List[PermissionOut] = []
@@ -33,10 +34,11 @@ class UserOut(BaseModel):
     name: str
     email: str
     phone: Optional[str] = None
+    avatar_url: Optional[str] = None
     is_owner: bool
     status: str
     roles: List[RoleOut] = []
-    created_at: datetime
+    created_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True

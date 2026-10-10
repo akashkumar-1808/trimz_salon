@@ -119,15 +119,15 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {/* Quick Demo Credentials */}
+          {/* Quick Account Fill */}
           <div className="mt-6 pt-5 border-t border-dark-border">
             <p className="text-[11px] font-semibold tracking-wider text-gray-400 uppercase text-center mb-3">
-              One-Click Test Accounts
+              Quick Select Account
             </p>
             <div className="grid grid-cols-2 gap-2.5">
               <button
                 type="button"
-                onClick={() => fillCredentials('owner@trimzsalon.com', 'Owner123!')}
+                onClick={() => { setEmail('trimzunisexsalonspt@gmail.com'); setPassword(''); }}
                 className="p-2.5 rounded-xl bg-dark-card border border-dark-border hover:border-brand-500/40 text-left transition-all group"
               >
                 <div className="flex items-center gap-1.5 text-brand-400 font-semibold text-xs group-hover:text-brand-300">
@@ -135,21 +135,21 @@ export default function LoginPage() {
                   <span>Salon Owner</span>
                 </div>
                 <div className="text-[10px] text-gray-500 mt-1 font-mono truncate">
-                  Full Authority
+                  trimzunisexsalonspt@gmail.com
                 </div>
               </button>
 
               <button
                 type="button"
-                onClick={() => fillCredentials('receptionist@trimzsalon.com', 'Staff123!')}
+                onClick={() => { setEmail('owner@trimzsalon.com'); setPassword(''); }}
                 className="p-2.5 rounded-xl bg-dark-card border border-dark-border hover:border-brand-500/40 text-left transition-all group"
               >
                 <div className="flex items-center gap-1.5 text-emerald-400 font-semibold text-xs group-hover:text-emerald-300">
                   <UserCheck className="w-3.5 h-3.5" />
-                  <span>Receptionist</span>
+                  <span>Admin Owner</span>
                 </div>
                 <div className="text-[10px] text-gray-500 mt-1 font-mono truncate">
-                  POS & Customers
+                  owner@trimzsalon.com
                 </div>
               </button>
             </div>

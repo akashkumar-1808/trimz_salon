@@ -27,7 +27,7 @@ class Service(Base):
     category_id = Column(GUID, ForeignKey("service_categories.id", ondelete="RESTRICT"), nullable=False, index=True)
     name = Column(String(150), nullable=False, index=True)
     description = Column(Text, nullable=True)
-    price = Column(Numeric(10, 2), nullable=False)
+    price = Column(Numeric(12, 2), nullable=False)
     duration_minutes = Column(Integer, nullable=False, default=30)
     audience = Column(String(20), nullable=False, default="Unisex") # Male, Female, Unisex
     commission_rate = Column(Numeric(5, 2), default=0.00)

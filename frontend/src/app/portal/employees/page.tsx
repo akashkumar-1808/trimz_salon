@@ -73,8 +73,9 @@ export default function EmployeesPage() {
   };
 
   const handleToggleStatus = async (emp: any) => {
-    const newStatus = emp.status === 'active' ? 'disabled' : 'active';
-    const confirmMsg = `Are you sure you want to ${newStatus === 'active' ? 're-activate' : 'disable'} ${emp.name}'s account?`;
+    const isCurrentlyActive = emp.status?.toUpperCase() === 'ACTIVE';
+    const newStatus = isCurrentlyActive ? 'INACTIVE' : 'ACTIVE';
+    const confirmMsg = `Are you sure you want to ${isCurrentlyActive ? 'deactivate' : 'reactivate'} ${emp.name}'s account?`;
     if (!confirm(confirmMsg)) return;
 
     try {
@@ -184,7 +185,7 @@ export default function EmployeesPage() {
                       <td className="p-4">
                         <span
                           className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                            emp.status === 'active'
+                            emp.status?.toUpperCase() === 'ACTIVE'
                               ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
                               : 'bg-red-500/10 text-red-400 border border-red-500/20'
                           }`}
@@ -198,12 +199,12 @@ export default function EmployeesPage() {
                           <button
                             onClick={() => handleToggleStatus(emp)}
                             className={`px-3 py-1 rounded-lg text-xs font-semibold border transition-all ${
-                              emp.status === 'active'
+                              emp.status?.toUpperCase() === 'ACTIVE'
                                 ? 'border-red-500/30 text-red-400 hover:bg-red-500/10'
                                 : 'border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10'
                             }`}
                           >
-                            {emp.status === 'active' ? 'Disable Access' : 'Re-activate'}
+                            {emp.status?.toUpperCase() === 'ACTIVE' ? 'Disable Access' : 'Re-activate'}
                           </button>
                         )}
                       </td>

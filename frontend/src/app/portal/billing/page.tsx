@@ -162,29 +162,42 @@ export default function BillingPosPage() {
 
     setIsSubmitting(true);
     try {
-      const payments: PaymentItem[] = [
-        {
-          method: paymentMethod,
-          provider: paymentMethod === 'upi' ? upiProvider : undefined,
-          amount: grandTotal,
-        },
-      ];
+      const phone = selectedCustomer?.phone || (isCreatingCustomer && newCustomerPhone ? newCustomerPhone : '9999999999');
+      const name = selectedCustomer?.name || (isCreatingCustomer && newCustomerName ? newCustomerName : 'Walk-in Guest');
+
+      const paymentModes: Record<string, string> = {
+        cash: 'CASH',
+        upi: 'UPI',
+        card: 'CARD'
+      };
+
+      const upiProviderNames: Record<string, string> = {
+        google_pay: 'Google Pay',
+        phonepe: 'PhonePe',
+        paytm: 'Paytm',
+        other: 'UPI'
+      };
 
       const payload = {
+        customer_phone: phone,
+        customer_name: name,
         customer_id: selectedCustomer?.id || undefined,
-        new_customer: isCreatingCustomer && newCustomerName && newCustomerPhone ? {
-          name: newCustomerName,
-          phone: newCustomerPhone,
-          gender: newCustomerGender,
-        } : undefined,
-        discount_amount: discountAmount,
-        tax_rate_percent: taxRate,
-        payments,
+        overall_discount: discountAmount,
+        apply_tax: taxRate > 0,
+        payments: [
+          {
+            payment_method: paymentModes[paymentMethod] || 'UPI',
+            payment_provider: paymentMethod === 'upi' ? (upiProviderNames[upiProvider] || 'PhonePe') : undefined,
+            amount: grandTotal,
+          }
+        ],
         items: cart.map((item) => ({
           service_id: item.service.id,
-          quantity: item.quantity,
+          name: item.service.name,
           unit_price: item.unit_price,
-          discount_amount: item.discount_amount,
+          quantity: item.quantity,
+          discount_amount: item.discount_amount || 0,
+          item_type: 'service',
         })),
         notes: notes || undefined,
       };
@@ -192,9 +205,29 @@ export default function BillingPosPage() {
       const result = await api.createSale(payload);
       
       // Load full receipt for printing
-      if (result.invoice_id) {
-        const receipt = await api.getInvoiceReceipt(result.invoice_id);
-        setCompletedReceipt(receipt);
+      if (result && result.sale) {
+        const sale = result.sale;
+        const inv = result.invoice;
+        const receiptData = {
+          invoice_number: inv?.invoice_number || sale.sale_number,
+          sale_number: sale.sale_number,
+          customer_name: sale.customer_name || name,
+          customer_phone: sale.customer_phone || phone,
+          created_at: sale.created_at,
+          items: (sale.items || []).map((it: any) => ({
+            service_name: it.service_name_snapshot,
+            quantity: it.quantity,
+            unit_price: Number(it.unit_price_snapshot),
+          })),
+          subtotal: Number(sale.subtotal),
+          discount_amount: Number(sale.discount_amount),
+          tax_amount: Number(sale.tax_amount),
+          total_amount: Number(sale.total_amount),
+          payment_method: sale.payments?.[0]?.payment_method || 'UPI',
+          payment_provider: sale.payments?.[0]?.payment_provider || '',
+          receipt_text: result.receipt_text,
+        };
+        setCompletedReceipt(receiptData);
         setIsReceiptOpen(true);
       }
 

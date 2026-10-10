@@ -99,3 +99,5 @@ Thumbs.db
 
 # Agent / Scratch Artifacts
 .gemini/
+supabase/.temp/
+*.tsbuildinfo

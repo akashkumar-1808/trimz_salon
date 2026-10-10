@@ -9,7 +9,7 @@ class AuditLog(Base):
 
     id = Column(GUID, primary_key=True, default=uuid.uuid4)
     business_id = Column(GUID, ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False, index=True)
-    user_id = Column(GUID, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    user_id = Column(GUID, ForeignKey("profiles.id", ondelete="SET NULL"), nullable=True)
     action = Column(String(80), nullable=False) # e.g. SALE_CREATED, ROLE_UPDATED, EMPLOYEE_CREATED
     entity_name = Column(String(50), nullable=False)
     entity_id = Column(GUID, nullable=True)

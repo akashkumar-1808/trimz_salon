@@ -11,26 +11,34 @@ class Sale(Base):
     id = Column(GUID, primary_key=True, default=uuid.uuid4)
     business_id = Column(GUID, ForeignKey("businesses.id", ondelete="RESTRICT"), nullable=False, index=True)
     customer_id = Column(GUID, ForeignKey("customers.id", ondelete="RESTRICT"), nullable=False, index=True)
-    operator_id = Column(GUID, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True)
+    operator_id = Column(GUID, ForeignKey("profiles.id", ondelete="RESTRICT"), nullable=False, index=True)
     sale_number = Column(String(50), nullable=False, index=True)
     client_request_id = Column(String(100), nullable=True, index=True)
     status = Column(String(20), nullable=False, default="COMPLETED") # DRAFT, COMPLETED, CANCELLED, REFUNDED
-    subtotal = Column(Numeric(10, 2), nullable=False, default=0.00)
-    discount_amount = Column(Numeric(10, 2), nullable=False, default=0.00)
+    subtotal = Column(Numeric(12, 2), nullable=False, default=0.00)
+    discount_amount = Column(Numeric(12, 2), nullable=False, default=0.00)
     discount_reason = Column(String(150), nullable=True)
-    tax_amount = Column(Numeric(10, 2), nullable=False, default=0.00)
+    tax_amount = Column(Numeric(12, 2), nullable=False, default=0.00)
     tax_percentage = Column(Numeric(5, 2), nullable=False, default=0.00)
-    total_amount = Column(Numeric(10, 2), nullable=False, default=0.00)
+    total_amount = Column(Numeric(12, 2), nullable=False, default=0.00)
     staff_name = Column(String(120), nullable=True)
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True)
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     customer = relationship("Customer", lazy="selectin")
-    operator = relationship("User", lazy="selectin")
+    operator = relationship("Profile", lazy="selectin")
     items = relationship("SaleItem", back_populates="sale", cascade="all, delete-orphan", lazy="selectin")
     payments = relationship("Payment", back_populates="sale", cascade="all, delete-orphan", lazy="selectin")
     invoice = relationship("Invoice", back_populates="sale", uselist=False, lazy="selectin")
+
+    @property
+    def customer_name(self):
+        return self.customer.name if self.customer else None
+
+    @property
+    def customer_phone(self):
+        return self.customer.phone if self.customer else None
 
 class SaleItem(Base):
     __tablename__ = "sale_items"
@@ -42,11 +50,11 @@ class SaleItem(Base):
     
     # Historical Snapshots
     service_name_snapshot = Column(String(150), nullable=False)
-    unit_price_snapshot = Column(Numeric(10, 2), nullable=False)
+    unit_price_snapshot = Column(Numeric(12, 2), nullable=False)
     quantity = Column(Integer, nullable=False, default=1)
-    discount_amount = Column(Numeric(10, 2), nullable=False, default=0.00)
-    tax_amount = Column(Numeric(10, 2), nullable=False, default=0.00)
-    total_price = Column(Numeric(10, 2), nullable=False)
+    discount_amount = Column(Numeric(12, 2), nullable=False, default=0.00)
+    tax_amount = Column(Numeric(12, 2), nullable=False, default=0.00)
+    total_price = Column(Numeric(12, 2), nullable=False)
     commission_rate_snapshot = Column(Numeric(5, 2), default=0.00)
     
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
@@ -60,7 +68,7 @@ class Payment(Base):
     id = Column(GUID, primary_key=True, default=uuid.uuid4)
     business_id = Column(GUID, ForeignKey("businesses.id", ondelete="RESTRICT"), nullable=False, index=True)
     sale_id = Column(GUID, ForeignKey("sales.id", ondelete="RESTRICT"), nullable=False, index=True)
-    amount = Column(Numeric(10, 2), nullable=False)
+    amount = Column(Numeric(12, 2), nullable=False)
     payment_method = Column(String(20), nullable=False, default="UPI") # CASH, UPI, CARD, OTHER
     payment_provider = Column(String(50), nullable=True) # Google Pay, PhonePe, Paytm, etc.
     status = Column(String(20), nullable=False, default="SUCCESS") # PENDING, SUCCESS, FAILED, REFUNDED

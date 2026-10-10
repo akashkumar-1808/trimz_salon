@@ -130,41 +130,8 @@ async def init_db():
                 if code in perm_map:
                     db.add(RolePermission(role_id=mgr_role.id, permission_id=perm_map[code].id))
 
-        # 4. Default Owner Account
-        owner_res = await db.execute(
-            select(User).where(User.business_id == biz.id, User.email == "owner@trimzsalon.com")
-        )
-        if not owner_res.scalar_one_or_none():
-            owner_user = User(
-                business_id=biz.id,
-                name="Harshith (Owner)",
-                email="owner@trimzsalon.com",
-                phone="+919800011223",
-                password_hash=get_password_hash("Owner123!"),
-                is_owner=True,
-                status="ACTIVE"
-            )
-            db.add(owner_user)
-            await db.flush()
-            db.add(UserRole(user_id=owner_user.id, role_id=owner_role.id))
-
-        # Default Receptionist Account
-        rec_user_res = await db.execute(
-            select(User).where(User.business_id == biz.id, User.email == "receptionist@trimzsalon.com")
-        )
-        if not rec_user_res.scalar_one_or_none():
-            rec_user = User(
-                business_id=biz.id,
-                name="Priya (Receptionist)",
-                email="receptionist@trimzsalon.com",
-                phone="+919811223344",
-                password_hash=get_password_hash("Staff123!"),
-                is_owner=False,
-                status="ACTIVE"
-            )
-            db.add(rec_user)
-            await db.flush()
-            db.add(UserRole(user_id=rec_user.id, role_id=rec_role.id))
+        # User accounts are provisioned via Supabase Auth & bootstrap_owner.py
+        # Skip direct user insertions to preserve auth.users foreign key integrity.
 
         # 5. Service Categories & Menu Services
         cats_to_seed = [

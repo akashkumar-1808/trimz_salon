@@ -28,7 +28,7 @@ class EmployeeOut(BaseModel):
     is_owner: bool
     status: str
     roles: List[RoleOut] = []
-    created_at: datetime
+    created_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True

@@ -59,6 +59,7 @@ class PaymentOut(BaseModel):
 
 class InvoiceOut(BaseModel):
     id: UUID
+    sale_id: Optional[UUID] = None
     invoice_number: str
     status: str
     subtotal: Decimal
@@ -67,6 +68,8 @@ class InvoiceOut(BaseModel):
     total_amount: Decimal
     currency: str
     pdf_url: Optional[str] = None
+    customer_name: Optional[str] = None
+    customer_phone: Optional[str] = None
     created_at: datetime
 
     class Config:
