@@ -81,13 +81,13 @@ export default function ReceiptModal({ receipt, isOpen, onClose }: ReceiptModalP
         {/* Modal Header */}
         <div className="p-4 border-b border-[#E8E5E3] flex items-center justify-between bg-white">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600">
-              <CheckCircle2 className="w-4 h-4" />
+            <div className="w-8 h-8 rounded-xl bg-[#F7F6F5] border border-[#E8E5E3] flex items-center justify-center text-[#171717]">
+              <CheckCircle2 className="w-4 h-4 text-[#171717]" />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="font-bold text-sm text-[#171717]">Bill Completed</h3>
-                <span className="text-xs font-mono text-[#E60023] font-semibold px-2 py-0.5 rounded-full bg-rose-50 border border-rose-200">
+                <span className="text-xs font-mono text-[#E60023] font-semibold px-2.5 py-0.5 rounded-full bg-[#F7F6F5] border border-[#E8E5E3]">
                   {receipt.invoice_number || receipt.sale_number}
                 </span>
               </div>
@@ -99,7 +99,7 @@ export default function ReceiptModal({ receipt, isOpen, onClose }: ReceiptModalP
 
           <div className="flex items-center gap-2">
             {/* Tab switch */}
-            <div className="bg-[#F5F4F3] p-1 rounded-xl border border-[#E8E5E3] flex text-xs">
+            <div className="bg-[#F7F6F5] p-1 rounded-xl border border-[#E8E5E3] flex text-xs">
               <button
                 type="button"
                 onClick={() => setActiveTab('thermal')}
@@ -137,14 +137,14 @@ export default function ReceiptModal({ receipt, isOpen, onClose }: ReceiptModalP
         </div>
 
         {/* WhatsApp Click-to-Chat Action Banner */}
-        <div className="px-4 py-2.5 bg-[#F0FDF4] border-b border-[#DCFCE7] flex flex-wrap items-center justify-between gap-2 text-xs">
+        <div className="px-4 py-2.5 bg-white border-b border-[#E8E5E3] flex flex-wrap items-center justify-between gap-2 text-xs">
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-lg bg-emerald-100 border border-emerald-300 flex items-center justify-center text-emerald-700">
+            <div className="w-6 h-6 rounded-lg bg-[#F7F6F5] border border-[#E8E5E3] flex items-center justify-center text-[#737373]">
               <MessageCircle className="w-3.5 h-3.5" />
             </div>
             <div>
-              <span className="text-emerald-950 font-bold">WhatsApp Receipt:</span>
-              <span className="text-emerald-800 ml-1.5 text-[11px]">
+              <span className="text-[#171717] font-bold">WhatsApp Receipt:</span>
+              <span className="text-[#737373] ml-1.5 text-[11px]">
                 Prefilled text receipt ready. Review and tap Send in WhatsApp.
               </span>
             </div>
@@ -154,18 +154,18 @@ export default function ReceiptModal({ receipt, isOpen, onClose }: ReceiptModalP
             <button
               type="button"
               onClick={handleCopyReceipt}
-              className="text-[#171717] hover:bg-white text-xs flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/80 border border-emerald-300 transition-colors font-medium shadow-2xs"
+              className="text-[#171717] hover:bg-[#F5F4F3] text-xs flex items-center gap-1.5 px-3 py-1 rounded-lg bg-white border border-[#E8E5E3] transition-colors font-medium shadow-xs"
               title="Copy formatted receipt text to clipboard"
             >
-              <Copy className="w-3 h-3 text-emerald-700" />
+              <Copy className="w-3 h-3 text-[#737373]" />
               <span>{copiedReceipt ? 'Copied!' : 'Copy Text'}</span>
             </button>
             <button
               type="button"
               onClick={handleOpenWhatsApp}
-              className="text-white hover:bg-emerald-700 bg-emerald-600 font-bold text-xs flex items-center gap-1.5 px-3 py-1 rounded-lg shadow-sm transition-all"
+              className="text-white hover:bg-black bg-[#171717] font-semibold text-xs flex items-center gap-1.5 px-3.5 py-1 rounded-lg shadow-sm transition-all"
             >
-              <ExternalLink className="w-3 h-3" />
+              <ExternalLink className="w-3 h-3 text-white" />
               <span>Open WhatsApp</span>
             </button>
           </div>
@@ -248,7 +248,7 @@ export default function ReceiptModal({ receipt, isOpen, onClose }: ReceiptModalP
                   <span>{formatCurrency(receipt.subtotal || 0)}</span>
                 </div>
                 {receipt.discount_amount > 0 && (
-                  <div className="flex justify-between text-emerald-700">
+                  <div className="flex justify-between text-gray-700">
                     <span>Discount:</span>
                     <span>-{formatCurrency(receipt.discount_amount)}</span>
                   </div>
@@ -275,7 +275,7 @@ export default function ReceiptModal({ receipt, isOpen, onClose }: ReceiptModalP
                 </div>
                 <div className="flex justify-between">
                   <span>Status:</span>
-                  <span className="text-emerald-700 font-bold uppercase">PAID &amp; VERIFIED</span>
+                  <span className="text-[#171717] font-bold uppercase">PAID &amp; VERIFIED</span>
                 </div>
               </div>
 
@@ -302,9 +302,9 @@ export default function ReceiptModal({ receipt, isOpen, onClose }: ReceiptModalP
           <button
             type="button"
             onClick={handleOpenWhatsApp}
-            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-all shadow-sm"
+            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-[#171717] hover:bg-black text-white font-bold text-xs transition-all shadow-sm"
           >
-            <MessageCircle className="w-4 h-4" />
+            <MessageCircle className="w-4 h-4 text-white" />
             <span>Open WhatsApp</span>
           </button>
 
@@ -313,7 +313,7 @@ export default function ReceiptModal({ receipt, isOpen, onClose }: ReceiptModalP
             onClick={handlePrint}
             className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-[#E60023] hover:bg-[#C9001F] text-white font-bold text-xs transition-all shadow-sm"
           >
-            <Printer className="w-4 h-4" />
+            <Printer className="w-4 h-4 text-white" />
             <span>Print Receipt</span>
           </button>
         </div>
