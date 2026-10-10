@@ -14,5 +14,5 @@ python-dotenv>=1.0.1
 httpx>=0.27.0
 reportlab>=4.0.0
 aiosqlite
-greenlet
 email-validator
+Pillow>=10.0.0
