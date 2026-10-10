@@ -5,15 +5,19 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { 
-  LayoutDashboard, 
+  Home, 
   Receipt, 
+  Calendar,
   Users, 
+  MessageSquare,
   Scissors, 
-  FileText, 
-  ShieldCheck, 
   UserCheck, 
-  History,
+  Package,
+  Award,
+  Layers,
+  TrendingDown,
   BarChart3,
+  FileText, 
   Settings,
   LogOut,
   Sparkles,
@@ -26,16 +30,22 @@ export default function Sidebar() {
 
   const navigation = [
     {
-      name: 'Dashboard',
+      name: 'Overview',
       href: '/portal/dashboard',
-      icon: LayoutDashboard,
+      icon: Home,
       permission: 'dashboard.view',
     },
     {
-      name: 'POS Billing',
+      name: 'Billing & POS',
       href: '/portal/billing',
       icon: Receipt,
       permission: 'billing.create',
+    },
+    {
+      name: 'Appointments',
+      href: '/portal/appointments',
+      icon: Calendar,
+      permission: 'billing.view',
     },
     {
       name: 'Customers',
@@ -44,10 +54,52 @@ export default function Sidebar() {
       permission: 'customers.view',
     },
     {
-      name: 'Services Catalog',
+      name: 'WhatsApp wishes',
+      href: '/portal/whatsapp',
+      icon: MessageSquare,
+      permission: 'billing.view',
+    },
+    {
+      name: 'Services',
       href: '/portal/services',
       icon: Scissors,
       permission: 'services.view',
+    },
+    {
+      name: 'Staff',
+      href: '/portal/employees',
+      icon: UserCheck,
+      permission: 'employees.view',
+    },
+    {
+      name: 'Inventory',
+      href: '/portal/inventory',
+      icon: Package,
+      permission: 'billing.view',
+    },
+    {
+      name: 'Memberships',
+      href: '/portal/memberships',
+      icon: Award,
+      permission: 'billing.view',
+    },
+    {
+      name: 'Packages',
+      href: '/portal/packages',
+      icon: Layers,
+      permission: 'billing.view',
+    },
+    {
+      name: 'Expenses',
+      href: '/portal/expenses',
+      icon: TrendingDown,
+      permission: 'billing.view',
+    },
+    {
+      name: 'Reports',
+      href: '/portal/reports',
+      icon: BarChart3,
+      permission: 'reports.view',
     },
     {
       name: 'Invoices',
@@ -56,63 +108,40 @@ export default function Sidebar() {
       permission: 'billing.view',
     },
     {
-      name: 'Reports & EOD',
-      href: '/portal/reports',
-      icon: BarChart3,
-      permission: 'reports.view',
-    },
-    {
-      name: 'Staff & Team',
-      href: '/portal/employees',
-      icon: UserCheck,
-      permission: 'employees.view',
-    },
-    {
-      name: 'Roles & RBAC',
-      href: '/portal/roles',
-      icon: ShieldCheck,
-      permission: 'roles.view',
-    },
-    {
-      name: 'Salon Settings',
+      name: 'Settings',
       href: '/portal/settings',
       icon: Settings,
       permission: 'settings.view',
     },
-    {
-      name: 'Audit Logs',
-      href: '/portal/audit',
-      icon: History,
-      permission: 'audit.view',
-    },
   ];
 
   return (
-    <aside className="w-64 bg-dark-surface border-r border-dark-border flex flex-col h-screen sticky top-0 select-none z-30">
+    <aside 
+      style={{ background: 'linear-gradient(180deg, #191919 0%, #111111 100%)' }}
+      className="w-60 border-r border-[#262626] flex flex-col h-screen sticky top-0 select-none z-30 shrink-0"
+    >
       {/* Brand Header */}
-      <div className="p-5 border-b border-dark-border flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center text-dark-bg font-black text-xl shadow-lg shadow-brand-500/20">
-            T
-          </div>
-          <div>
-            <span className="font-extrabold tracking-wider text-lg bg-gradient-to-r from-brand-300 via-brand-400 to-amber-200 bg-clip-text text-transparent">
-              TRIMZ SALON
-            </span>
-            <p className="text-[10px] tracking-widest uppercase font-semibold text-dark-muted">
-              {user?.is_owner ? 'Owner Terminal' : 'Operations Desk'}
-            </p>
-          </div>
-        </div>
+      <div className="px-4 pt-7 pb-5 border-b border-[#252525] flex items-center justify-center">
+        <Link href="/portal/dashboard" className="flex items-center justify-center w-full">
+          <img 
+            src="/trimz.png" 
+            alt="Trimz Unisex Salon" 
+            className="h-9 w-auto max-w-[160px] object-contain mx-auto"
+          />
+        </Link>
       </div>
 
       {/* Navigation Links */}
-      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-        <div className="px-3 pb-2 text-[11px] font-semibold tracking-wider text-gray-500 uppercase">
-          Menu
+      <nav className="flex-1 px-3 py-3 space-y-0.5 overflow-y-auto">
+        <div className="px-3 pt-2 pb-1.5 text-[10px] font-semibold tracking-widest text-[#737373] uppercase">
+          WORKSPACE
         </div>
+        
         {navigation.map((item) => {
-          if (!hasPermission(item.permission)) return null;
+          // If user doesn't have permission and isn't owner, skip
+          if (!user?.is_owner && item.permission && !hasPermission(item.permission)) {
+            return null;
+          }
 
           const isActive = pathname === item.href;
           const Icon = item.icon;
@@ -121,54 +150,63 @@ export default function Sidebar() {
             <Link
               key={item.name}
               href={item.href}
-              className={`flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm font-medium transition-all ${
+              className={`relative flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] font-medium transition-all ${
                 isActive
-                  ? 'bg-brand-500/10 text-brand-400 border border-brand-500/30 shadow-sm'
-                  : 'text-gray-400 hover:text-gray-100 hover:bg-dark-card/60'
+                  ? 'bg-[#242424] text-white shadow-sm font-semibold'
+                  : 'text-[#A3A3A3] hover:text-white hover:bg-[#1C1C1C]'
               }`}
             >
-              <Icon className={`w-4 h-4 ${isActive ? 'text-brand-400' : 'text-gray-400'}`} />
-              <span>{item.name}</span>
+              {/* Left active red accent bar */}
+              {isActive && (
+                <span className="absolute left-0 top-1.5 bottom-1.5 w-1 bg-[#E60023] rounded-r" />
+              )}
+              <Icon 
+                className={`w-4 h-4 transition-colors ${
+                  isActive ? 'text-white' : 'text-[#8A8A8A] group-hover:text-white'
+                }`} 
+              />
+              <span className="truncate">{item.name}</span>
             </Link>
           );
         })}
 
-        <div className="pt-4 px-3 pb-2 text-[11px] font-semibold tracking-wider text-gray-500 uppercase">
-          External
+        {/* Public Website External Link */}
+        <div className="pt-3 px-3 pb-1 text-[10px] font-semibold tracking-widest text-[#737373] uppercase">
+          EXTERNAL
         </div>
         <Link
           href="/"
           target="_blank"
-          className="flex items-center justify-between px-3.5 py-2.5 rounded-lg text-sm font-medium text-gray-400 hover:text-gray-100 hover:bg-dark-card/60 transition-all"
+          className="flex items-center justify-between px-3 py-2 rounded-xl text-[13px] font-medium text-[#A3A3A3] hover:text-white hover:bg-[#1C1C1C] transition-all"
         >
           <span className="flex items-center gap-3">
-            <Sparkles className="w-4 h-4 text-brand-400" />
-            <span>Public Website</span>
+            <Sparkles className="w-4 h-4 text-[#8A8A8A]" />
+            <span>Customer Site</span>
           </span>
-          <ExternalLink className="w-3.5 h-3.5 text-gray-500" />
+          <ExternalLink className="w-3.5 h-3.5 text-[#666666]" />
         </Link>
       </nav>
 
       {/* User Footer Profile */}
-      <div className="p-4 border-t border-dark-border bg-dark-bg/60">
+      <div className="p-3 border-t border-[#252525] bg-[#141414]/80">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-9 h-9 rounded-full bg-dark-card border border-dark-border flex items-center justify-center font-bold text-sm text-brand-300">
-              {user?.name ? user.name.charAt(0).toUpperCase() : 'U'}
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-full bg-[#242424] border border-[#333333] flex items-center justify-center font-bold text-xs text-white">
+              {user?.name ? user.name.charAt(0).toUpperCase() : 'T'}
             </div>
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-gray-200 truncate">
-                {user?.name || 'User'}
+              <p className="text-xs font-semibold text-white truncate">
+                {user?.name || 'Trimz Staff'}
               </p>
-              <p className="text-xs text-brand-400 truncate font-mono">
-                {user?.is_owner ? 'Owner / Admin' : roles[0] || 'Staff'}
+              <p className="text-[10px] text-[#8A8A8A] truncate">
+                {user?.is_owner ? 'Salon Owner' : roles[0] || 'Operations'}
               </p>
             </div>
           </div>
           <button
             onClick={logout}
             title="Log out"
-            className="p-2 text-gray-400 hover:text-red-400 hover:bg-dark-card rounded-lg transition-colors"
+            className="p-1.5 text-[#8A8A8A] hover:text-[#E60023] hover:bg-[#222222] rounded-lg transition-colors"
           >
             <LogOut className="w-4 h-4" />
           </button>

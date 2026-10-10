@@ -13,7 +13,6 @@ import {
   CheckCircle2, 
   AlertCircle, 
   Loader2,
-  ShieldCheck,
   Receipt
 } from 'lucide-react';
 
@@ -156,18 +155,29 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="flex-1 flex flex-col min-h-screen">
+    <div className="flex-1 flex flex-col min-h-screen bg-workspace-bg">
       <Topbar title="Salon & Profile Configuration" />
 
-      <div className="p-6 space-y-6 max-w-5xl mx-auto w-full">
+      <main className="p-6 md:p-8 space-y-6 max-w-5xl mx-auto w-full">
+        {/* Header Kicker */}
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+          <div>
+            <div className="text-[11px] font-bold uppercase tracking-widest text-text-muted">TRIMZ SYSTEM SETTINGS</div>
+            <h1 className="font-serif text-3xl font-bold text-text-primary tracking-tight mt-0.5">Settings & Profile</h1>
+            <p className="text-sm text-text-secondary mt-1">
+              Configure business identity, tax credentials, invoicing prefix, and user credentials.
+            </p>
+          </div>
+        </div>
+
         {/* Navigation Tabs */}
-        <div className="flex gap-2 bg-dark-surface p-2 rounded-2xl border border-dark-border w-fit">
+        <div className="flex gap-2 bg-white p-2 rounded-2xl border border-workspace-border shadow-sm w-fit">
           <button
             onClick={() => setActiveTab('business')}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
               activeTab === 'business'
-                ? 'bg-brand-500 text-dark-bg shadow-md shadow-brand-500/20'
-                : 'text-gray-400 hover:text-white hover:bg-dark-card'
+                ? 'bg-text-primary text-white shadow-sm'
+                : 'text-text-secondary hover:text-text-primary hover:bg-workspace-hover'
             }`}
           >
             <Building2 className="w-4 h-4" />
@@ -177,8 +187,8 @@ export default function SettingsPage() {
             onClick={() => setActiveTab('profile')}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
               activeTab === 'profile'
-                ? 'bg-brand-500 text-dark-bg shadow-md shadow-brand-500/20'
-                : 'text-gray-400 hover:text-white hover:bg-dark-card'
+                ? 'bg-text-primary text-white shadow-sm'
+                : 'text-text-secondary hover:text-text-primary hover:bg-workspace-hover'
             }`}
           >
             <User className="w-4 h-4" />
@@ -188,29 +198,29 @@ export default function SettingsPage() {
 
         {/* BUSINESS SETTINGS */}
         {activeTab === 'business' && (
-          <div className="bg-dark-surface border border-dark-border rounded-2xl p-6 shadow-xl space-y-6">
-            <div className="border-b border-dark-border pb-4">
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <Building2 className="w-5 h-5 text-brand-400" />
+          <div className="bg-white border border-workspace-border rounded-2xl p-6 md:p-8 shadow-sm space-y-6">
+            <div className="border-b border-workspace-border pb-4">
+              <h3 className="text-base font-semibold text-text-primary flex items-center gap-2">
+                <Building2 className="w-5 h-5 text-primary" />
                 <span>Salon Identity & Billing Settings</span>
               </h3>
-              <p className="text-xs text-gray-400 mt-1">
+              <p className="text-xs text-text-secondary mt-1">
                 Configure your business particulars, invoice numbering prefixes, and tax details.
               </p>
             </div>
 
             {businessMsg && (
               <div
-                className={`p-3.5 rounded-xl border flex items-center gap-3 text-xs ${
+                className={`p-3.5 rounded-xl border flex items-center gap-3 text-sm font-medium ${
                   businessMsg.type === 'success'
-                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-                    : 'bg-rose-500/10 border-rose-500/30 text-rose-400'
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                    : 'bg-rose-50 border-rose-200 text-rose-800'
                 }`}
               >
                 {businessMsg.type === 'success' ? (
-                  <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
                 ) : (
-                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0" />
                 )}
                 <span>{businessMsg.text}</span>
               </div>
@@ -218,13 +228,14 @@ export default function SettingsPage() {
 
             {loadingBusiness ? (
               <div className="p-16 flex flex-col items-center justify-center gap-2">
-                <Loader2 className="w-6 h-6 animate-spin text-brand-400" />
+                <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                <span className="text-xs text-text-muted">Loading settings...</span>
               </div>
             ) : (
               <form onSubmit={handleSaveBusiness} className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="text-xs font-semibold text-gray-300 block mb-1">
+                    <label className="text-xs font-medium text-text-secondary block mb-1">
                       Salon Display Name
                     </label>
                     <input
@@ -232,24 +243,24 @@ export default function SettingsPage() {
                       value={business.name}
                       onChange={(e) => setBusiness({ ...business, name: e.target.value })}
                       required
-                      className="w-full bg-dark-card border border-dark-border rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-brand-500"
+                      className="w-full bg-white border border-workspace-border rounded-xl px-3.5 py-2.5 text-sm text-text-primary focus:outline-none focus:border-text-primary"
                     />
                   </div>
 
                   <div>
-                    <label className="text-xs font-semibold text-gray-300 block mb-1">
+                    <label className="text-xs font-medium text-text-secondary block mb-1">
                       Legal Registered Entity Name
                     </label>
                     <input
                       type="text"
                       value={business.legal_name || ''}
                       onChange={(e) => setBusiness({ ...business, legal_name: e.target.value })}
-                      className="w-full bg-dark-card border border-dark-border rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-brand-500"
+                      className="w-full bg-white border border-workspace-border rounded-xl px-3.5 py-2.5 text-sm text-text-primary focus:outline-none focus:border-text-primary"
                     />
                   </div>
 
                   <div>
-                    <label className="text-xs font-semibold text-gray-300 block mb-1">
+                    <label className="text-xs font-medium text-text-secondary block mb-1">
                       Contact Phone
                     </label>
                     <input
@@ -257,24 +268,24 @@ export default function SettingsPage() {
                       value={business.phone}
                       onChange={(e) => setBusiness({ ...business, phone: e.target.value })}
                       required
-                      className="w-full bg-dark-card border border-dark-border rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-brand-500"
+                      className="w-full bg-white border border-workspace-border rounded-xl px-3.5 py-2.5 text-sm text-text-primary focus:outline-none focus:border-text-primary font-mono"
                     />
                   </div>
 
                   <div>
-                    <label className="text-xs font-semibold text-gray-300 block mb-1">
+                    <label className="text-xs font-medium text-text-secondary block mb-1">
                       Contact Email
                     </label>
                     <input
                       type="email"
                       value={business.email || ''}
                       onChange={(e) => setBusiness({ ...business, email: e.target.value })}
-                      className="w-full bg-dark-card border border-dark-border rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-brand-500"
+                      className="w-full bg-white border border-workspace-border rounded-xl px-3.5 py-2.5 text-sm text-text-primary focus:outline-none focus:border-text-primary"
                     />
                   </div>
 
                   <div className="md:col-span-2">
-                    <label className="text-xs font-semibold text-gray-300 block mb-1">
+                    <label className="text-xs font-medium text-text-secondary block mb-1">
                       Street Address
                     </label>
                     <input
@@ -282,75 +293,75 @@ export default function SettingsPage() {
                       value={business.address}
                       onChange={(e) => setBusiness({ ...business, address: e.target.value })}
                       required
-                      className="w-full bg-dark-card border border-dark-border rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-brand-500"
+                      className="w-full bg-white border border-workspace-border rounded-xl px-3.5 py-2.5 text-sm text-text-primary focus:outline-none focus:border-text-primary"
                     />
                   </div>
 
                   <div>
-                    <label className="text-xs font-semibold text-gray-300 block mb-1">City</label>
+                    <label className="text-xs font-medium text-text-secondary block mb-1">City</label>
                     <input
                       type="text"
                       value={business.city}
                       onChange={(e) => setBusiness({ ...business, city: e.target.value })}
                       required
-                      className="w-full bg-dark-card border border-dark-border rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-brand-500"
+                      className="w-full bg-white border border-workspace-border rounded-xl px-3.5 py-2.5 text-sm text-text-primary focus:outline-none focus:border-text-primary"
                     />
                   </div>
 
                   <div>
-                    <label className="text-xs font-semibold text-gray-300 block mb-1">State</label>
+                    <label className="text-xs font-medium text-text-secondary block mb-1">State</label>
                     <input
                       type="text"
                       value={business.state}
                       onChange={(e) => setBusiness({ ...business, state: e.target.value })}
                       required
-                      className="w-full bg-dark-card border border-dark-border rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-brand-500"
+                      className="w-full bg-white border border-workspace-border rounded-xl px-3.5 py-2.5 text-sm text-text-primary focus:outline-none focus:border-text-primary"
                     />
                   </div>
 
                   <div>
-                    <label className="text-xs font-semibold text-gray-300 block mb-1">Postal Code</label>
+                    <label className="text-xs font-medium text-text-secondary block mb-1">Postal Code</label>
                     <input
                       type="text"
                       value={business.postal_code}
                       onChange={(e) => setBusiness({ ...business, postal_code: e.target.value })}
                       required
-                      className="w-full bg-dark-card border border-dark-border rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-brand-500"
+                      className="w-full bg-white border border-workspace-border rounded-xl px-3.5 py-2.5 text-sm text-text-primary focus:outline-none focus:border-text-primary font-mono"
                     />
                   </div>
 
                   <div>
-                    <label className="text-xs font-semibold text-gray-300 block mb-1">Country</label>
+                    <label className="text-xs font-medium text-text-secondary block mb-1">Country</label>
                     <input
                       type="text"
                       value={business.country}
                       onChange={(e) => setBusiness({ ...business, country: e.target.value })}
                       required
-                      className="w-full bg-dark-card border border-dark-border rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-brand-500"
+                      className="w-full bg-white border border-workspace-border rounded-xl px-3.5 py-2.5 text-sm text-text-primary focus:outline-none focus:border-text-primary"
                     />
                   </div>
                 </div>
 
-                <div className="border-t border-dark-border pt-4">
-                  <h4 className="text-xs font-bold text-white uppercase tracking-wider mb-4 flex items-center gap-2">
-                    <Receipt className="w-4 h-4 text-brand-400" />
+                <div className="border-t border-workspace-border pt-4">
+                  <h4 className="text-xs font-bold text-text-primary uppercase tracking-wider mb-4 flex items-center gap-2">
+                    <Receipt className="w-4 h-4 text-primary" />
                     <span>Invoicing & Tax Credentials</span>
                   </h4>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                      <label className="text-xs font-semibold text-gray-300 block mb-1">
+                      <label className="text-xs font-medium text-text-secondary block mb-1">
                         Tax Name (e.g. GST)
                       </label>
                       <input
                         type="text"
                         value={business.tax_name}
                         onChange={(e) => setBusiness({ ...business, tax_name: e.target.value })}
-                        className="w-full bg-dark-card border border-dark-border rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-brand-500"
+                        className="w-full bg-white border border-workspace-border rounded-xl px-3.5 py-2.5 text-sm text-text-primary focus:outline-none focus:border-text-primary"
                       />
                     </div>
 
                     <div>
-                      <label className="text-xs font-semibold text-gray-300 block mb-1">
+                      <label className="text-xs font-medium text-text-secondary block mb-1">
                         Default Tax Rate (%)
                       </label>
                       <input
@@ -358,12 +369,12 @@ export default function SettingsPage() {
                         step="0.01"
                         value={business.default_tax_rate}
                         onChange={(e) => setBusiness({ ...business, default_tax_rate: e.target.value })}
-                        className="w-full bg-dark-card border border-dark-border rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-brand-500 font-mono"
+                        className="w-full bg-white border border-workspace-border rounded-xl px-3.5 py-2.5 text-sm text-text-primary focus:outline-none focus:border-text-primary font-mono"
                       />
                     </div>
 
                     <div>
-                      <label className="text-xs font-semibold text-gray-300 block mb-1">
+                      <label className="text-xs font-medium text-text-secondary block mb-1">
                         GSTIN / Tax Registration
                       </label>
                       <input
@@ -371,43 +382,43 @@ export default function SettingsPage() {
                         value={business.tax_registration_number || ''}
                         onChange={(e) => setBusiness({ ...business, tax_registration_number: e.target.value })}
                         placeholder="29AAAAA0000A1Z5"
-                        className="w-full bg-dark-card border border-dark-border rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-brand-500 font-mono"
+                        className="w-full bg-white border border-workspace-border rounded-xl px-3.5 py-2.5 text-sm text-text-primary focus:outline-none focus:border-text-primary font-mono"
                       />
                     </div>
 
                     <div>
-                      <label className="text-xs font-semibold text-gray-300 block mb-1">
+                      <label className="text-xs font-medium text-text-secondary block mb-1">
                         Bill / Sale Prefix
                       </label>
                       <input
                         type="text"
                         value={business.bill_prefix}
                         onChange={(e) => setBusiness({ ...business, bill_prefix: e.target.value })}
-                        className="w-full bg-dark-card border border-dark-border rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-brand-500 font-mono"
+                        className="w-full bg-white border border-workspace-border rounded-xl px-3.5 py-2.5 text-sm text-text-primary focus:outline-none focus:border-text-primary font-mono"
                       />
                     </div>
 
                     <div>
-                      <label className="text-xs font-semibold text-gray-300 block mb-1">
+                      <label className="text-xs font-medium text-text-secondary block mb-1">
                         Currency Code
                       </label>
                       <input
                         type="text"
                         value={business.currency}
                         onChange={(e) => setBusiness({ ...business, currency: e.target.value })}
-                        className="w-full bg-dark-card border border-dark-border rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-brand-500 font-mono"
+                        className="w-full bg-white border border-workspace-border rounded-xl px-3.5 py-2.5 text-sm text-text-primary focus:outline-none focus:border-text-primary font-mono"
                       />
                     </div>
 
                     <div>
-                      <label className="text-xs font-semibold text-gray-300 block mb-1">
+                      <label className="text-xs font-medium text-text-secondary block mb-1">
                         Currency Symbol
                       </label>
                       <input
                         type="text"
                         value={business.currency_symbol}
                         onChange={(e) => setBusiness({ ...business, currency_symbol: e.target.value })}
-                        className="w-full bg-dark-card border border-dark-border rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-brand-500 font-mono"
+                        className="w-full bg-white border border-workspace-border rounded-xl px-3.5 py-2.5 text-sm text-text-primary focus:outline-none focus:border-text-primary font-mono"
                       />
                     </div>
                   </div>
@@ -418,7 +429,7 @@ export default function SettingsPage() {
                     <button
                       type="submit"
                       disabled={savingBusiness}
-                      className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 text-dark-bg font-bold text-xs transition-all shadow-md shadow-brand-500/20 disabled:opacity-50"
+                      className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary hover:bg-primary-hover text-white font-medium text-sm transition-all shadow-sm disabled:opacity-50"
                     >
                       {savingBusiness ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                       <span>Save Business Profile</span>
@@ -432,34 +443,34 @@ export default function SettingsPage() {
 
         {/* PROFILE SETTINGS */}
         {activeTab === 'profile' && (
-          <div className="bg-dark-surface border border-dark-border rounded-2xl p-6 shadow-xl space-y-6">
-            <div className="border-b border-dark-border pb-4 flex items-center justify-between">
+          <div className="bg-white border border-workspace-border rounded-2xl p-6 md:p-8 shadow-sm space-y-6">
+            <div className="border-b border-workspace-border pb-4 flex items-center justify-between">
               <div>
-                <h3 className="text-base font-bold text-white flex items-center gap-2">
-                  <User className="w-5 h-5 text-brand-400" />
+                <h3 className="text-base font-semibold text-text-primary flex items-center gap-2">
+                  <User className="w-5 h-5 text-primary" />
                   <span>My Account Profile</span>
                 </h3>
-                <p className="text-xs text-gray-400 mt-1">
+                <p className="text-xs text-text-secondary mt-1">
                   Manage your personal user details and Supabase Auth credentials.
                 </p>
               </div>
-              <span className="px-3 py-1 rounded-full bg-brand-500/10 border border-brand-500/20 text-brand-400 font-mono text-xs font-bold">
+              <span className="px-3 py-1 rounded-full bg-workspace-bg border border-workspace-border text-primary font-mono text-xs font-bold">
                 {user?.is_owner ? 'Main Owner' : 'Team Member'}
               </span>
             </div>
 
             {profileMsg && (
               <div
-                className={`p-3.5 rounded-xl border flex items-center gap-3 text-xs ${
+                className={`p-3.5 rounded-xl border flex items-center gap-3 text-sm font-medium ${
                   profileMsg.type === 'success'
-                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-                    : 'bg-rose-500/10 border-rose-500/30 text-rose-400'
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                    : 'bg-rose-50 border-rose-200 text-rose-800'
                 }`}
               >
                 {profileMsg.type === 'success' ? (
-                  <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
                 ) : (
-                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0" />
                 )}
                 <span>{profileMsg.text}</span>
               </div>
@@ -467,13 +478,14 @@ export default function SettingsPage() {
 
             {loadingProfile ? (
               <div className="p-16 flex flex-col items-center justify-center gap-2">
-                <Loader2 className="w-6 h-6 animate-spin text-brand-400" />
+                <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                <span className="text-xs text-text-muted">Loading profile...</span>
               </div>
             ) : (
               <form onSubmit={handleSaveProfile} className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="text-xs font-semibold text-gray-300 block mb-1">
+                    <label className="text-xs font-medium text-text-secondary block mb-1">
                       Full Name
                     </label>
                     <input
@@ -481,43 +493,43 @@ export default function SettingsPage() {
                       value={profile.name}
                       onChange={(e) => setProfile({ ...profile, name: e.target.value })}
                       required
-                      className="w-full bg-dark-card border border-dark-border rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-brand-500"
+                      className="w-full bg-white border border-workspace-border rounded-xl px-3.5 py-2.5 text-sm text-text-primary focus:outline-none focus:border-text-primary"
                     />
                   </div>
 
                   <div>
-                    <label className="text-xs font-semibold text-gray-300 block mb-1">
+                    <label className="text-xs font-medium text-text-secondary block mb-1">
                       Email Address (Supabase Auth ID)
                     </label>
                     <input
                       type="email"
                       value={profile.email}
                       disabled
-                      className="w-full bg-dark-card/50 border border-dark-border rounded-xl px-3.5 py-2.5 text-xs text-gray-400 cursor-not-allowed font-mono"
+                      className="w-full bg-workspace-bg border border-workspace-border rounded-xl px-3.5 py-2.5 text-sm text-text-muted cursor-not-allowed font-mono"
                     />
                   </div>
 
                   <div>
-                    <label className="text-xs font-semibold text-gray-300 block mb-1">
+                    <label className="text-xs font-medium text-text-secondary block mb-1">
                       Phone Number
                     </label>
                     <input
                       type="text"
                       value={profile.phone}
                       onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
-                      className="w-full bg-dark-card border border-dark-border rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-brand-500"
+                      className="w-full bg-white border border-workspace-border rounded-xl px-3.5 py-2.5 text-sm text-text-primary focus:outline-none focus:border-text-primary font-mono"
                     />
                   </div>
                 </div>
 
-                <div className="border-t border-dark-border pt-4">
-                  <h4 className="text-xs font-bold text-white uppercase tracking-wider mb-4 flex items-center gap-2">
-                    <Lock className="w-4 h-4 text-brand-400" />
+                <div className="border-t border-workspace-border pt-4">
+                  <h4 className="text-xs font-bold text-text-primary uppercase tracking-wider mb-4 flex items-center gap-2">
+                    <Lock className="w-4 h-4 text-primary" />
                     <span>Change Account Password</span>
                   </h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="text-xs font-semibold text-gray-300 block mb-1">
+                      <label className="text-xs font-medium text-text-secondary block mb-1">
                         New Password
                       </label>
                       <input
@@ -525,12 +537,12 @@ export default function SettingsPage() {
                         value={newPassword}
                         onChange={(e) => setNewPassword(e.target.value)}
                         placeholder="Leave blank to keep current password"
-                        className="w-full bg-dark-card border border-dark-border rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-brand-500"
+                        className="w-full bg-white border border-workspace-border rounded-xl px-3.5 py-2.5 text-sm text-text-primary focus:outline-none focus:border-text-primary"
                       />
                     </div>
 
                     <div>
-                      <label className="text-xs font-semibold text-gray-300 block mb-1">
+                      <label className="text-xs font-medium text-text-secondary block mb-1">
                         Confirm New Password
                       </label>
                       <input
@@ -538,7 +550,7 @@ export default function SettingsPage() {
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
                         placeholder="Repeat new password"
-                        className="w-full bg-dark-card border border-dark-border rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-brand-500"
+                        className="w-full bg-white border border-workspace-border rounded-xl px-3.5 py-2.5 text-sm text-text-primary focus:outline-none focus:border-text-primary"
                       />
                     </div>
                   </div>
@@ -548,7 +560,7 @@ export default function SettingsPage() {
                   <button
                     type="submit"
                     disabled={savingProfile}
-                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 text-dark-bg font-bold text-xs transition-all shadow-md shadow-brand-500/20 disabled:opacity-50"
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary hover:bg-primary-hover text-white font-medium text-sm transition-all shadow-sm disabled:opacity-50"
                   >
                     {savingProfile ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                     <span>Update Profile</span>
@@ -558,7 +570,7 @@ export default function SettingsPage() {
             )}
           </div>
         )}
-      </div>
+      </main>
     </div>
   );
 }

@@ -22,12 +22,12 @@ export default function PortalLayout({
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-dark-bg flex flex-col items-center justify-center">
-        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center text-dark-bg font-black text-2xl mb-4 shadow-xl shadow-brand-500/20 animate-pulse">
-          T
+      <div className="min-h-screen bg-workspace-bg flex flex-col items-center justify-center">
+        <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center text-white font-serif font-black text-2xl mb-4 shadow-md shadow-primary/20 animate-pulse">
+          T.
         </div>
-        <div className="flex items-center gap-2 text-brand-300 text-sm font-medium">
-          <Loader2 className="w-4 h-4 animate-spin text-brand-400" />
+        <div className="flex items-center gap-2 text-text-secondary text-sm font-medium">
+          <Loader2 className="w-4 h-4 animate-spin text-primary" />
           <span>Loading Trimz Portal...</span>
         </div>
       </div>
@@ -39,12 +39,12 @@ export default function PortalLayout({
   }
 
   return (
-    <div className="min-h-screen bg-dark-bg flex">
+    <div className="min-h-screen bg-workspace-bg flex">
       {/* Dynamic RBAC Sidebar */}
       <Sidebar />
 
       {/* Main Content Viewport */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
+      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto bg-workspace-bg">
         {children}
       </div>
     </div>

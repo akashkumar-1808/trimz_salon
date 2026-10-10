@@ -5,127 +5,125 @@ import Topbar from '@/components/Topbar';
 import ReceiptModal from '@/components/ReceiptModal';
 import { api } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
-import { Service, ServiceCategory, Customer, CartItem, PaymentItem } from '@/lib/types';
+import { Service, ServiceCategory, Customer, CartItem } from '@/lib/types';
 import { 
   Search, 
   Plus, 
   Minus, 
   Trash2, 
-  UserPlus, 
-  CreditCard, 
-  Smartphone, 
-  Banknote, 
-  Clock, 
-  Scissors, 
   CheckCircle, 
   X, 
   Loader2,
-  Sparkles,
-  Percent
+  MessageCircle,
+  RotateCcw,
+  Sparkles
 } from 'lucide-react';
 
 export default function BillingPosPage() {
-  // Service selection state
+  // Service catalogue state
   const [categories, setCategories] = useState<ServiceCategory[]>([]);
   const [services, setServices] = useState<Service[]>([]);
-  const [selectedDepartment, setSelectedDepartment] = useState<'all' | 'Women' | 'Men'>('Women');
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [selectedGender, setSelectedGender] = useState<string>('all');
+  const [staffMembers, setStaffMembers] = useState<any[]>([]);
+  const [selectedStaff, setSelectedStaff] = useState<string>('');
+  const [selectedGender, setSelectedGender] = useState<'All' | 'Men' | 'Women'>('All');
+  const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState('');
-  const [viewMode, setViewMode] = useState<'row' | 'grid'>('row');
   const [loadingServices, setLoadingServices] = useState(true);
 
   // Cart & checkout state
   const [cart, setCart] = useState<CartItem[]>([]);
   const [discountAmount, setDiscountAmount] = useState<number>(0);
-  const [taxRate, setTaxRate] = useState<number>(0); // 0% or 18% GST
+  const [applyGst, setApplyGst] = useState<boolean>(true);
+  const [gstRate, setGstRate] = useState<number>(5); // 5% GST standard for salons
   const [notes, setNotes] = useState('');
 
   // Customer state
   const [customerSearch, setCustomerSearch] = useState('');
+  const [customerName, setCustomerName] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
   const [customerResults, setCustomerResults] = useState<Customer[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
-  const [isCreatingCustomer, setIsCreatingCustomer] = useState(false);
-  const [newCustomerName, setNewCustomerName] = useState('');
-  const [newCustomerPhone, setNewCustomerPhone] = useState('');
-  const [newCustomerGender, setNewCustomerGender] = useState('all');
 
   // Payment state
-  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'upi' | 'card'>('upi');
-  const [upiProvider, setUpiProvider] = useState<'google_pay' | 'phonepe' | 'paytm' | 'other'>('google_pay');
+  const [paymentMethod, setPaymentMethod] = useState<'UPI' | 'CASH' | 'CARD'>('UPI');
+  const [upiProvider, setUpiProvider] = useState<'PhonePe' | 'Google Pay' | 'Paytm' | 'Other'>('PhonePe');
 
   // Checkout process & modal
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [completedReceipt, setCompletedReceipt] = useState<any>(null);
   const [isReceiptOpen, setIsReceiptOpen] = useState(false);
 
-  // Load initial categories and services
+  // Load initial catalogue and staff
   useEffect(() => {
-    const loadCatalog = async () => {
+    const loadData = async () => {
       setLoadingServices(true);
       try {
-        const [cats, svcs] = await Promise.all([
+        const [cats, svcs, emps] = await Promise.all([
           api.getCategories(),
           api.getServices(),
+          api.getEmployees().catch(() => []),
         ]);
-        setCategories(cats);
-        setServices(svcs);
+        setCategories(cats || []);
+        setServices(svcs || []);
+        setStaffMembers(emps || []);
       } catch (err) {
-        console.error('Catalog load failure:', err);
+        console.error('Failed to load catalogue data:', err);
       } finally {
         setLoadingServices(false);
       }
     };
-    loadCatalog();
+    loadData();
   }, []);
 
-  // Customer live lookup
+  // Customer live lookup by name or phone
   useEffect(() => {
-    if (!customerSearch.trim() || selectedCustomer) {
+    const query = customerPhone.trim() || customerName.trim();
+    if (!query || selectedCustomer) {
       setCustomerResults([]);
       return;
     }
     const timer = setTimeout(async () => {
       try {
-        const res = await api.getCustomers(customerSearch);
-        setCustomerResults(res);
+        const res = await api.getCustomers(query);
+        setCustomerResults(res || []);
       } catch (err) {
         console.error('Customer lookup error:', err);
       }
     }, 250);
     return () => clearTimeout(timer);
-  }, [customerSearch, selectedCustomer]);
+  }, [customerPhone, customerName, selectedCustomer]);
 
-  // Categories belonging to current department
-  const departmentCategories = categories.filter((c) => {
-    if (selectedDepartment === 'all') return true;
-    return c.department === selectedDepartment || c.department === 'Unisex' || !c.department;
-  });
-
-  // Filtered services
+  // Filtered services matching search, gender, and category
   const filteredServices = services.filter((svc) => {
-    // Department filtering
-    if (selectedDepartment === 'Women') {
-      if (svc.audience === 'Male') return false;
-      const cat = categories.find((c) => c.id === svc.category_id);
-      if (cat && cat.department && cat.department === 'Men') return false;
-    } else if (selectedDepartment === 'Men') {
+    // Gender filter
+    if (selectedGender === 'Men') {
       if (svc.audience === 'Female') return false;
-      const cat = categories.find((c) => c.id === svc.category_id);
-      if (cat && cat.department && cat.department === 'Women') return false;
+      if (svc.target_gender && svc.target_gender.toLowerCase() === 'female') return false;
+    } else if (selectedGender === 'Women') {
+      if (svc.audience === 'Male') return false;
+      if (svc.target_gender && svc.target_gender.toLowerCase() === 'male') return false;
     }
 
-    if (selectedCategory !== 'all' && svc.category_id !== selectedCategory) return false;
-    if (selectedGender !== 'all' && svc.target_gender !== 'all' && svc.target_gender !== selectedGender) return false;
+    // Category filter
+    if (selectedCategory !== 'All') {
+      const catObj = categories.find((c) => c.id === svc.category_id || c.name === selectedCategory);
+      if (catObj) {
+        if (catObj.name !== selectedCategory && svc.category_id !== selectedCategory) return false;
+      } else if (svc.category_name !== selectedCategory) {
+        return false;
+      }
+    }
+
+    // Search query filter
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      return (
-        svc.name.toLowerCase().includes(q) ||
-        (svc.category_name && svc.category_name.toLowerCase().includes(q)) ||
-        (svc.variant_name && svc.variant_name.toLowerCase().includes(q)) ||
-        (svc.combo_items && svc.combo_items.toLowerCase().includes(q))
-      );
+      const matchName = svc.name.toLowerCase().includes(q);
+      const matchCat = svc.category_name ? svc.category_name.toLowerCase().includes(q) : false;
+      const matchVariant = svc.variant_name ? svc.variant_name.toLowerCase().includes(q) : false;
+      const matchCombo = svc.combo_items ? svc.combo_items.toLowerCase().includes(q) : false;
+      return matchName || matchCat || matchVariant || matchCombo;
     }
+
     return true;
   });
 
@@ -160,58 +158,58 @@ export default function BillingPosPage() {
     setCart((prev) => prev.filter((item) => item.service.id !== svcId));
   };
 
-  const clearCart = () => {
+  const clearBill = () => {
     setCart([]);
-    setSelectedCustomer(null);
-    setCustomerSearch('');
-    setIsCreatingCustomer(false);
-    setNewCustomerName('');
-    setNewCustomerPhone('');
     setDiscountAmount(0);
     setNotes('');
+    setSelectedCustomer(null);
+    setCustomerName('');
+    setCustomerPhone('');
+    setSelectedStaff('');
   };
 
-  // Calculations
+  // Financial calculations
   const subtotal = cart.reduce((sum, item) => sum + item.unit_price * item.quantity, 0);
   const taxableAmount = Math.max(0, subtotal - discountAmount);
-  const taxAmount = (taxableAmount * taxRate) / 100;
-  const grandTotal = Math.round(taxableAmount + taxAmount);
+  const taxAmount = applyGst ? Math.round((taxableAmount * gstRate) / 100) : 0;
+  const grandTotal = taxableAmount + taxAmount;
 
   // Complete Checkout
-  const handleCheckout = async () => {
+  const handleCheckout = async (openWhatsApp: boolean = false) => {
     if (cart.length === 0) {
-      alert('Please add at least one service to the cart.');
+      alert('Please add at least one service to the cart before checking out.');
       return;
+    }
+
+    let phone = customerPhone.trim();
+    if (!phone && selectedCustomer?.phone) {
+      phone = selectedCustomer.phone;
+    }
+
+    const name = customerName.trim() || selectedCustomer?.name || 'Walk-in Guest';
+
+    if (openWhatsApp && (!phone || phone.replace(/\D/g, '').length < 10)) {
+      const proceed = confirm(
+        'A valid 10-digit mobile number was not entered. WhatsApp receipt cannot be prepared automatically. Do you still want to save the bill?'
+      );
+      if (!proceed) return;
     }
 
     setIsSubmitting(true);
     try {
-      const phone = selectedCustomer?.phone || (isCreatingCustomer && newCustomerPhone ? newCustomerPhone : '9999999999');
-      const name = selectedCustomer?.name || (isCreatingCustomer && newCustomerName ? newCustomerName : 'Walk-in Guest');
-
-      const paymentModes: Record<string, string> = {
-        cash: 'CASH',
-        upi: 'UPI',
-        card: 'CARD'
-      };
-
-      const upiProviderNames: Record<string, string> = {
-        google_pay: 'Google Pay',
-        phonepe: 'PhonePe',
-        paytm: 'Paytm',
-        other: 'UPI'
-      };
-
       const payload = {
-        customer_phone: phone,
+        customer_phone: phone || '9999999999',
         customer_name: name,
         customer_id: selectedCustomer?.id || undefined,
         overall_discount: discountAmount,
-        apply_tax: taxRate > 0,
+        apply_tax: applyGst,
+        open_whatsapp: openWhatsApp,
+        send_whatsapp: openWhatsApp,
+        staff_name: selectedStaff || undefined,
         payments: [
           {
-            payment_method: paymentModes[paymentMethod] || 'UPI',
-            payment_provider: paymentMethod === 'upi' ? (upiProviderNames[upiProvider] || 'PhonePe') : undefined,
+            payment_method: paymentMethod,
+            payment_provider: paymentMethod === 'UPI' ? upiProvider : undefined,
             amount: grandTotal,
           }
         ],
@@ -229,17 +227,21 @@ export default function BillingPosPage() {
       };
 
       const result = await api.createSale(payload);
-      
-      // Load full receipt for printing
+
       if (result && result.sale) {
         const sale = result.sale;
         const inv = result.invoice;
         const receiptData = {
+          invoice_id: inv?.id,
           invoice_number: inv?.invoice_number || sale.sale_number,
           sale_number: sale.sale_number,
           customer_name: sale.customer_name || name,
           customer_phone: sale.customer_phone || phone,
           created_at: sale.created_at,
+          image_url: inv?.image_url,
+          whatsapp_url: result.whatsapp_url || result.whatsapp_click_to_chat?.url,
+          whatsapp_click_to_chat: result.whatsapp_click_to_chat,
+          whatsapp_delivery: result.whatsapp_delivery,
           items: (sale.items || []).map((it: any) => ({
             service_name: it.service_name_snapshot,
             quantity: it.quantity,
@@ -249,15 +251,26 @@ export default function BillingPosPage() {
           discount_amount: Number(sale.discount_amount),
           tax_amount: Number(sale.tax_amount),
           total_amount: Number(sale.total_amount),
-          payment_method: sale.payments?.[0]?.payment_method || 'UPI',
+          payment_method: sale.payments?.[0]?.payment_method || paymentMethod,
           payment_provider: sale.payments?.[0]?.payment_provider || '',
           receipt_text: result.receipt_text,
         };
         setCompletedReceipt(receiptData);
         setIsReceiptOpen(true);
+
+        if (openWhatsApp && result.whatsapp_url) {
+          try {
+            const waWindow = window.open(result.whatsapp_url, '_blank');
+            if (!waWindow) {
+              console.warn('Browser pop-up blocked. Open WhatsApp button available in receipt modal.');
+            }
+          } catch (popupErr) {
+            console.warn('Failed to open WhatsApp window:', popupErr);
+          }
+        }
       }
 
-      clearCart();
+      clearBill();
     } catch (err: any) {
       alert(`Checkout failed: ${err.message || 'Unknown error'}`);
     } finally {
@@ -265,547 +278,437 @@ export default function BillingPosPage() {
     }
   };
 
+  // Category pill list from backend
+  const categoryNames = ['All', ...categories.map((c) => c.name)];
+
   return (
-    <div className="flex-1 flex flex-col min-h-screen">
-      <Topbar title="POS Terminal & Billing" />
+    <div className="flex-1 flex flex-col min-h-screen bg-[#F7F6F5]">
+      {/* Topbar Navigation */}
+      <Topbar title="Billing & POS" breadcrumb="Billing & POS" />
 
-      {/* Main 2-Pane Terminal */}
-      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
-        {/* Left Pane: Service Catalog Selector */}
-        <div className="flex-1 flex flex-col border-r border-dark-border bg-dark-bg/60 p-5 space-y-4 overflow-y-auto">
-          {/* Top-Level Department Choice & Mode Selector */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-dark-surface p-2.5 rounded-2xl border border-dark-border">
-            <div className="flex items-center gap-1.5 p-1 bg-dark-bg rounded-xl border border-dark-border">
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedDepartment('Women');
-                  setSelectedCategory('all');
-                }}
-                className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${
-                  selectedDepartment === 'Women'
-                    ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40 shadow-sm'
-                    : 'text-gray-400 hover:text-white'
-                }`}
-              >
-                <Sparkles className="w-3.5 h-3.5 text-rose-400" />
-                <span>Women&apos;s Lounge</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedDepartment('Men');
-                  setSelectedCategory('all');
-                }}
-                className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${
-                  selectedDepartment === 'Men'
-                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm'
-                    : 'text-gray-400 hover:text-white'
-                }`}
-              >
-                <Scissors className="w-3.5 h-3.5 text-amber-400" />
-                <span>Gentlemen&apos;s Lounge</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedDepartment('all');
-                  setSelectedCategory('all');
-                }}
-                className={`px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
-                  selectedDepartment === 'all'
-                    ? 'bg-brand-500/20 text-brand-300 border border-brand-500/40 shadow-sm'
-                    : 'text-gray-400 hover:text-white'
-                }`}
-              >
-                All
-              </button>
-            </div>
-
-            {/* Layout Toggle (Row vs Grid) */}
-            <div className="flex items-center gap-1 self-end sm:self-center">
-              <span className="text-[11px] text-gray-500 font-medium mr-1 hidden sm:inline">Layout:</span>
-              <div className="flex bg-dark-bg p-1 rounded-xl border border-dark-border">
-                <button
-                  type="button"
-                  onClick={() => setViewMode('row')}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
-                    viewMode === 'row'
-                      ? 'bg-dark-card text-brand-300 border border-dark-border'
-                      : 'text-gray-500 hover:text-gray-300'
-                  }`}
-                  title="Easy-to-scan Row List"
-                >
-                  List
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setViewMode('grid')}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
-                    viewMode === 'grid'
-                      ? 'bg-dark-card text-brand-300 border border-dark-border'
-                      : 'text-gray-500 hover:text-gray-300'
-                  }`}
-                  title="Card Grid"
-                >
-                  Cards
-                </button>
-              </div>
-            </div>
+      {/* Main Workspace Body */}
+      <div className="p-6 md:p-8 max-w-[1600px] w-full mx-auto">
+        {/* Page Title & Header Row */}
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6">
+          <div>
+            <p className="text-[11px] font-semibold tracking-widest text-[#929292] uppercase">
+              TRIMZ SALON DESK
+            </p>
+            <h1 className="text-3xl md:text-4xl font-serif font-bold text-[#171717] tracking-tight mt-1">
+              Billing &amp; POS
+            </h1>
+            <p className="text-sm text-[#737373] mt-1 font-normal">
+              Build a bill, identify returning guests by mobile and share the receipt.
+            </p>
           </div>
 
-          {/* Search Bar */}
-          <div className="relative">
-            <Search className="w-4 h-4 text-gray-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder={`Search ${selectedDepartment === 'Women' ? "women's" : selectedDepartment === 'Men' ? "men's" : ''} services, hair cuts, combos, facials...`}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-dark-surface border border-dark-border rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-brand-500 transition-all"
-            />
-          </div>
-
-          {/* Category Tabs */}
-          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
-            <button
-              onClick={() => setSelectedCategory('all')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
-                selectedCategory === 'all'
-                  ? 'bg-brand-500/20 text-brand-300 border border-brand-500/40 shadow-sm'
-                  : 'bg-dark-surface text-gray-400 border border-dark-border hover:text-white'
-              }`}
-            >
-              All Categories ({filteredServices.length})
-            </button>
-            {departmentCategories.map((c) => {
-              const catCount = services.filter((s) => s.category_id === c.id).length;
-              return (
-                <button
-                  key={c.id}
-                  onClick={() => setSelectedCategory(c.id)}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
-                    selectedCategory === c.id
-                      ? 'bg-brand-500/20 text-brand-300 border border-brand-500/40 shadow-sm'
-                      : 'bg-dark-surface text-gray-400 border border-dark-border hover:text-white'
-                  }`}
-                >
-                  {c.name} {catCount > 0 ? `(${catCount})` : ''}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Service Cards / Rows */}
-          {loadingServices ? (
-            <div className="h-64 flex items-center justify-center">
-              <Loader2 className="w-8 h-8 animate-spin text-brand-400" />
-            </div>
-          ) : filteredServices.length === 0 ? (
-            <div className="p-12 text-center text-gray-500 text-xs">
-              No services found matching the criteria.
-            </div>
-          ) : viewMode === 'row' ? (
-            /* Row-based layout (Easy to scan) */
-            <div className="space-y-2">
-              {filteredServices.map((svc) => (
-                <div
-                  key={svc.id}
-                  onClick={() => addToCart(svc)}
-                  className="p-3.5 rounded-xl bg-dark-surface border border-dark-border hover:border-brand-500/60 hover:bg-dark-card/70 transition-all cursor-pointer group flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-                >
-                  {/* Left: Service details */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h4 className="font-semibold text-sm text-gray-100 group-hover:text-brand-300 transition-colors">
-                        {svc.name}
-                      </h4>
-                      {svc.variant_name && (
-                        <span className="px-2 py-0.5 rounded-md bg-brand-500/10 border border-brand-500/30 text-brand-300 text-[10px] font-semibold">
-                          {svc.variant_name}
-                        </span>
-                      )}
-                      {svc.is_variable_price && (
-                        <span className="px-2 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[10px] font-medium">
-                          Onwards
-                        </span>
-                      )}
-                      {svc.category_name && (
-                        <span className="text-[10px] text-gray-500 font-medium">
-                          • {svc.category_name}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Combo components if applicable */}
-                    {svc.combo_items && (
-                      <p className="text-[11px] text-gray-400 mt-1 flex items-center gap-1">
-                        <span className="text-brand-400 font-semibold">Includes:</span>
-                        <span>{svc.combo_items}</span>
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Middle: Duration */}
-                  <div className="flex items-center gap-1 text-xs text-gray-400 shrink-0">
-                    <Clock className="w-3.5 h-3.5 text-gray-500" />
-                    <span>{svc.duration_minutes} mins</span>
-                  </div>
-
-                  {/* Right: Price & Add */}
-                  <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-dark-border">
-                    <div className="text-right">
-                      <span className="text-sm font-bold font-mono text-white group-hover:text-brand-200">
-                        {formatCurrency(svc.price)}
-                      </span>
-                      {svc.is_variable_price && (
-                        <span className="text-[10px] text-gray-500 block font-normal">+ onwards</span>
-                      )}
-                    </div>
-                    <button
-                      type="button"
-                      className="px-3 py-1.5 rounded-lg bg-brand-500/10 text-brand-400 border border-brand-500/30 text-xs font-semibold group-hover:bg-brand-500 group-hover:text-dark-bg transition-all flex items-center gap-1 shadow-sm"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>Add</span>
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            /* Grid cards layout */
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-              {filteredServices.map((svc) => (
-                <div
-                  key={svc.id}
-                  onClick={() => addToCart(svc)}
-                  className="p-4 rounded-xl bg-dark-surface border border-dark-border hover:border-brand-500/50 hover:bg-dark-card/60 transition-all cursor-pointer group flex flex-col justify-between"
-                >
-                  <div>
-                    <div className="flex items-start justify-between gap-2">
-                      <h4 className="font-semibold text-sm text-gray-100 group-hover:text-brand-300 transition-colors">
-                        {svc.name}
-                      </h4>
-                      {svc.variant_name && (
-                        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-brand-500/10 border border-brand-500/30 text-brand-300">
-                          {svc.variant_name}
-                        </span>
-                      )}
-                    </div>
-
-                    {svc.combo_items && (
-                      <p className="text-[10px] text-gray-400 mt-1 line-clamp-2">
-                        {svc.combo_items}
-                      </p>
-                    )}
-
-                    <div className="flex items-center gap-1.5 text-xs text-gray-400 mt-2">
-                      <Clock className="w-3.5 h-3.5 text-gray-500" />
-                      <span>{svc.duration_minutes} mins</span>
-                      {svc.is_variable_price && (
-                        <span className="text-[10px] text-amber-400 ml-auto font-medium">onwards</span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="mt-4 pt-3 border-t border-dark-border flex items-center justify-between">
-                    <span className="text-sm font-bold font-mono text-white">
-                      {formatCurrency(svc.price)}
-                    </span>
-                    <button
-                      type="button"
-                      className="px-2.5 py-1 rounded-lg bg-brand-500/10 text-brand-400 border border-brand-500/30 text-xs font-semibold group-hover:bg-brand-500 group-hover:text-dark-bg transition-all flex items-center gap-1"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>Add</span>
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          <button
+            type="button"
+            onClick={clearBill}
+            className="self-start sm:self-auto flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white border border-[#E8E5E3] hover:bg-[#F5F4F3] text-[#171717] text-xs font-semibold shadow-sm transition-all"
+          >
+            <RotateCcw className="w-3.5 h-3.5 text-[#737373]" />
+            <span>Clear bill</span>
+          </button>
         </div>
 
-        {/* Right Pane: Cart & Checkout Bill */}
-        <div className="w-full lg:w-96 xl:w-[420px] bg-dark-surface border-l border-dark-border flex flex-col h-full overflow-hidden">
-          {/* Customer Selection Header */}
-          <div className="p-4 border-b border-dark-border bg-dark-card/40">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-gray-300">
-                Customer Details
-              </span>
-              {!isCreatingCustomer && !selectedCustomer && (
-                <button
-                  onClick={() => setIsCreatingCustomer(true)}
-                  className="text-xs text-brand-400 hover:text-brand-300 font-semibold flex items-center gap-1"
-                >
-                  <UserPlus className="w-3.5 h-3.5" />
-                  <span>+ New Guest</span>
-                </button>
-              )}
+        {/* 2-Column Responsive Workspace */}
+        <div className="flex flex-col lg:flex-row gap-6 items-start">
+          {/* LEFT COLUMN: Service Catalogue */}
+          <div className="flex-1 w-full bg-white rounded-2xl border border-[#E8E5E3] p-5 sm:p-6 shadow-sm">
+            {/* Choose Services Header + Find Service Input */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#F0EEEB]">
+              <div>
+                <h2 className="text-base font-bold text-[#171717]">
+                  Choose services
+                </h2>
+                <p className="text-xs text-[#737373] mt-0.5">
+                  Tap a service to add it to this bill
+                </p>
+              </div>
+
+              {/* Search Field */}
+              <div className="relative w-full sm:w-64">
+                <Search className="w-4 h-4 text-[#929292] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  type="text"
+                  placeholder="Find service..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-[#E8E5E3] bg-white text-[#171717] placeholder-[#929292] focus:outline-none focus:border-[#171717] transition-colors"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
             </div>
 
-            {selectedCustomer ? (
-              <div className="p-2.5 rounded-xl bg-dark-bg border border-brand-500/40 flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-bold text-brand-300">{selectedCustomer.name}</p>
-                  <p className="text-[11px] font-mono text-gray-400">{selectedCustomer.phone}</p>
-                </div>
+            {/* Filter Pills: Gender Row */}
+            <div className="flex flex-wrap items-center gap-2 pt-4">
+              {(['All', 'Men', 'Women'] as const).map((gender) => {
+                const isSelected = selectedGender === gender;
+                return (
+                  <button
+                    key={gender}
+                    type="button"
+                    onClick={() => setSelectedGender(gender)}
+                    className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all ${
+                      isSelected
+                        ? 'bg-[#171717] text-white shadow-sm'
+                        : 'bg-white text-[#171717] border border-[#E8E5E3] hover:bg-[#F5F4F3]'
+                    }`}
+                  >
+                    {gender}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Filter Pills: Category Row */}
+            <div className="flex flex-wrap items-center gap-2 pt-2.5 pb-2">
+              {categoryNames.map((catName) => {
+                const isSelected = selectedCategory === catName;
+                return (
+                  <button
+                    key={catName}
+                    type="button"
+                    onClick={() => setSelectedCategory(catName)}
+                    className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition-all ${
+                      isSelected
+                        ? 'bg-[#171717] text-white shadow-sm'
+                        : 'bg-white text-[#171717] border border-[#E8E5E3] hover:bg-[#F5F4F3]'
+                    }`}
+                  >
+                    {catName}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Service Cards Grid */}
+            {loadingServices ? (
+              <div className="py-20 flex flex-col items-center justify-center text-[#737373]">
+                <Loader2 className="w-6 h-6 animate-spin text-[#E60023] mb-2" />
+                <p className="text-xs font-medium">Loading salon service catalogue...</p>
+              </div>
+            ) : filteredServices.length === 0 ? (
+              <div className="py-20 flex flex-col items-center justify-center text-center text-[#737373]">
+                <p className="text-sm font-semibold text-[#171717]">No services match this filter</p>
+                <p className="text-xs text-[#929292] mt-1">Try switching category or search keywords</p>
                 <button
-                  onClick={() => setSelectedCustomer(null)}
-                  className="text-gray-500 hover:text-red-400 p-1"
+                  type="button"
+                  onClick={() => {
+                    setSelectedGender('All');
+                    setSelectedCategory('All');
+                    setSearchQuery('');
+                  }}
+                  className="mt-3 text-xs font-semibold text-[#E60023] hover:underline"
                 >
-                  <X className="w-4 h-4" />
+                  Reset filters
                 </button>
               </div>
-            ) : isCreatingCustomer ? (
-              <div className="space-y-2 p-2.5 bg-dark-bg rounded-xl border border-dark-border">
-                <div className="flex justify-between items-center">
-                  <span className="text-[11px] font-semibold text-gray-400 uppercase">Walk-in Profile</span>
-                  <button onClick={() => setIsCreatingCustomer(false)} className="text-gray-500 hover:text-gray-300 text-xs">
-                    Cancel
-                  </button>
-                </div>
-                <input
-                  type="text"
-                  placeholder="Full Name"
-                  value={newCustomerName}
-                  onChange={(e) => setNewCustomerName(e.target.value)}
-                  className="w-full bg-dark-surface border border-dark-border rounded-lg px-2.5 py-1.5 text-xs text-white"
-                />
-                <input
-                  type="tel"
-                  placeholder="10-digit Phone"
-                  value={newCustomerPhone}
-                  onChange={(e) => setNewCustomerPhone(e.target.value)}
-                  className="w-full bg-dark-surface border border-dark-border rounded-lg px-2.5 py-1.5 text-xs text-white font-mono"
-                />
-              </div>
             ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3.5 mt-4">
+                {filteredServices.map((svc) => (
+                  <div
+                    key={svc.id}
+                    onClick={() => addToCart(svc)}
+                    className="group bg-white border border-[#E8E5E3] hover:border-[#171717]/40 hover:shadow-md transition-all rounded-xl p-4 cursor-pointer text-left flex flex-col justify-between min-h-[115px]"
+                  >
+                    <div>
+                      <h3 className="font-semibold text-sm text-[#171717] leading-snug group-hover:text-[#E60023] transition-colors">
+                        {svc.name}
+                        {svc.variant_name && (
+                          <span className="text-xs font-normal text-[#737373] ml-1">
+                            ({svc.variant_name})
+                          </span>
+                        )}
+                      </h3>
+                      <p className="text-xs text-[#737373] mt-1 font-normal">
+                        {svc.category_name || 'Service'} · {svc.audience || 'Unisex'} · {svc.duration_minutes ? `${svc.duration_minutes} min` : 'Duration not set'}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center justify-between mt-3 pt-2">
+                      <span className="text-base font-bold text-[#E60023] tracking-tight">
+                        {formatCurrency(svc.price)}
+                      </span>
+                      <span className="opacity-0 group-hover:opacity-100 transition-opacity text-[11px] font-bold text-[#171717] bg-[#F5F4F3] px-2 py-0.5 rounded-lg border border-[#E8E5E3]">
+                        + Add
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* RIGHT COLUMN: Current Bill Card */}
+          <div className="w-full lg:w-[380px] xl:w-[420px] bg-white rounded-2xl border border-[#E8E5E3] p-5 shadow-sm sticky top-20">
+            {/* Header with Draft badge */}
+            <div className="flex items-center justify-between pb-3.5 border-b border-[#F0EEEB]">
+              <div>
+                <h2 className="text-base font-bold text-[#171717] leading-tight">
+                  Current bill
+                </h2>
+                <p className="text-xs font-mono text-[#737373] mt-0.5">
+                  Bill no. TZ-{new Date().toISOString().slice(0, 10).replace(/-/g, '')}-0004
+                </p>
+              </div>
+              <span className="bg-rose-50 text-[#E60023] border border-rose-200 text-[11px] font-bold px-2.5 py-0.5 rounded-full">
+                Draft
+              </span>
+            </div>
+
+            {/* Customer & Staff Form Inputs */}
+            <div className="space-y-3 pt-3.5">
+              {/* Customer Name */}
               <div className="relative">
+                <label className="block text-xs font-medium text-[#737373] mb-1">
+                  Customer name
+                </label>
                 <input
                   type="text"
-                  placeholder="Search existing customer by phone or name..."
-                  value={customerSearch}
-                  onChange={(e) => setCustomerSearch(e.target.value)}
-                  className="w-full bg-dark-bg border border-dark-border rounded-xl px-3 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-brand-500"
+                  placeholder="Enter customer name"
+                  value={customerName}
+                  onChange={(e) => {
+                    setCustomerName(e.target.value);
+                    if (selectedCustomer) setSelectedCustomer(null);
+                  }}
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-[#E8E5E3] bg-white text-[#171717] placeholder-[#929292] focus:outline-none focus:border-[#171717] transition-colors"
                 />
-                {customerResults.length > 0 && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-dark-surface border border-dark-border rounded-xl shadow-2xl max-h-48 overflow-y-auto z-30 divide-y divide-dark-border">
+
+                {/* Suggestions Dropdown */}
+                {customerResults.length > 0 && !selectedCustomer && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-[#E8E5E3] rounded-xl shadow-xl max-h-48 overflow-y-auto z-30 divide-y divide-[#F0EEEB]">
                     {customerResults.map((c) => (
                       <div
                         key={c.id}
                         onClick={() => {
                           setSelectedCustomer(c);
-                          setCustomerSearch('');
+                          setCustomerName(c.name);
+                          setCustomerPhone(c.phone);
                           setCustomerResults([]);
                         }}
-                        className="p-2.5 hover:bg-dark-card cursor-pointer transition-colors"
+                        className="p-2.5 hover:bg-[#F5F4F3] cursor-pointer transition-colors"
                       >
-                        <p className="text-xs font-semibold text-gray-200">{c.name}</p>
-                        <p className="text-[11px] font-mono text-gray-400">{c.phone} • {c.total_visits} visits</p>
+                        <p className="text-xs font-semibold text-[#171717]">{c.name}</p>
+                        <p className="text-[11px] font-mono text-[#737373]">{c.phone} · {c.total_visits} visits</p>
                       </div>
                     ))}
                   </div>
                 )}
               </div>
-            )}
-          </div>
 
-          {/* Cart Items List */}
-          <div className="flex-1 p-4 overflow-y-auto space-y-2.5">
-            {cart.length === 0 ? (
-              <div className="h-48 flex flex-col items-center justify-center text-center text-gray-500 text-xs">
-                <Scissors className="w-8 h-8 text-gray-600 mb-2" />
-                <span>Cart is empty</span>
-                <span className="text-[10px] text-gray-600 mt-1">Tap any service to begin building the bill</span>
-              </div>
-            ) : (
-              cart.map((item) => (
-                <div
-                  key={item.service.id}
-                  className="p-3 rounded-xl bg-dark-card border border-dark-border flex items-center justify-between gap-3"
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-semibold text-gray-200 truncate">
-                      {item.service.name}
-                      {item.service.variant_name && (
-                        <span className="text-[10px] text-brand-300 ml-1 font-normal">
-                          ({item.service.variant_name})
-                        </span>
-                      )}
-                    </p>
-                    <p className="text-[11px] font-mono text-brand-300">
-                      {formatCurrency(item.unit_price)} each
-                    </p>
-                  </div>
-
-                  {/* Quantity Stepper */}
-                  <div className="flex items-center gap-2 bg-dark-bg px-2 py-1 rounded-lg border border-dark-border">
-                    <button
-                      onClick={() => updateQuantity(item.service.id, -1)}
-                      className="text-gray-400 hover:text-white p-0.5"
-                    >
-                      <Minus className="w-3 h-3" />
-                    </button>
-                    <span className="text-xs font-bold font-mono text-white px-1">
-                      {item.quantity}
-                    </span>
-                    <button
-                      onClick={() => updateQuantity(item.service.id, 1)}
-                      className="text-gray-400 hover:text-white p-0.5"
-                    >
-                      <Plus className="w-3 h-3" />
-                    </button>
-                  </div>
-
-                  <span className="text-xs font-bold font-mono text-white min-w-[60px] text-right">
-                    {formatCurrency(item.unit_price * item.quantity)}
-                  </span>
-
-                  <button
-                    onClick={() => removeFromCart(item.service.id)}
-                    className="text-gray-500 hover:text-red-400 p-1"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              ))
-            )}
-          </div>
-
-          {/* Pricing Calculation Summary */}
-          <div className="p-4 border-t border-dark-border bg-dark-card/30 space-y-3">
-            <div className="space-y-1.5 text-xs">
-              <div className="flex justify-between text-gray-400">
-                <span>Subtotal</span>
-                <span className="font-mono text-gray-200">{formatCurrency(subtotal)}</span>
-              </div>
-
-              {/* Discount Input */}
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-gray-400 flex items-center gap-1">
-                  <Percent className="w-3 h-3 text-brand-400" />
-                  <span>Discount (₹)</span>
-                </span>
+              {/* Customer Mobile Number */}
+              <div>
+                <label className="block text-xs font-medium text-[#737373] mb-1">
+                  Customer mobile number
+                </label>
                 <input
-                  type="number"
-                  min="0"
-                  max={subtotal}
-                  value={discountAmount || ''}
-                  onChange={(e) => setDiscountAmount(Math.max(0, Number(e.target.value)))}
-                  placeholder="0"
-                  className="w-20 bg-dark-bg border border-dark-border rounded-lg px-2 py-1 text-right text-xs font-mono text-emerald-400 focus:outline-none focus:border-brand-500"
+                  type="tel"
+                  placeholder="Enter mobile to check visit history"
+                  value={customerPhone}
+                  onChange={(e) => {
+                    setCustomerPhone(e.target.value);
+                    if (selectedCustomer) setSelectedCustomer(null);
+                  }}
+                  className="w-full px-3 py-2 text-xs font-mono rounded-xl border border-[#E8E5E3] bg-white text-[#171717] placeholder-[#929292] focus:outline-none focus:border-[#171717] transition-colors"
                 />
               </div>
 
-              {/* GST Toggle */}
-              <div className="flex items-center justify-between text-gray-400">
-                <span className="flex items-center gap-2">
-                  <span>GST (18%)</span>
-                  <input
-                    type="checkbox"
-                    checked={taxRate === 18}
-                    onChange={(e) => setTaxRate(e.target.checked ? 18 : 0)}
-                    className="rounded bg-dark-bg border-dark-border text-brand-500"
-                  />
-                </span>
-                <span className="font-mono text-gray-200">{formatCurrency(taxAmount)}</span>
-              </div>
-
-              <div className="flex justify-between text-base font-extrabold text-white pt-2 border-t border-dark-border">
-                <span>Net Payable</span>
-                <span className="font-mono text-brand-300">{formatCurrency(grandTotal)}</span>
+              {/* Staff Member Selection */}
+              <div>
+                <label className="block text-xs font-medium text-[#737373] mb-1">
+                  Service performed by
+                </label>
+                <select
+                  value={selectedStaff}
+                  onChange={(e) => setSelectedStaff(e.target.value)}
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-[#E8E5E3] bg-white text-[#171717] focus:outline-none focus:border-[#171717] transition-colors"
+                >
+                  <option value="">Select staff member</option>
+                  {staffMembers.map((emp) => (
+                    <option key={emp.id} value={emp.name}>
+                      {emp.name} ({emp.roles?.[0]?.name || 'Stylist'})
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
 
-            {/* Payment Method Selector */}
-            <div className="space-y-2 pt-2 border-t border-dark-border">
-              <div className="text-[11px] font-semibold text-gray-400 uppercase">Payment Instrument</div>
-              <div className="grid grid-cols-3 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setPaymentMethod('upi')}
-                  className={`p-2 rounded-xl flex flex-col items-center gap-1 text-xs font-semibold border transition-all ${
-                    paymentMethod === 'upi'
-                      ? 'bg-brand-500/20 border-brand-500/50 text-brand-300'
-                      : 'bg-dark-bg border-dark-border text-gray-400 hover:text-white'
-                  }`}
-                >
-                  <Smartphone className="w-4 h-4" />
-                  <span>UPI</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPaymentMethod('cash')}
-                  className={`p-2 rounded-xl flex flex-col items-center gap-1 text-xs font-semibold border transition-all ${
-                    paymentMethod === 'cash'
-                      ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300'
-                      : 'bg-dark-bg border-dark-border text-gray-400 hover:text-white'
-                  }`}
-                >
-                  <Banknote className="w-4 h-4" />
-                  <span>Cash</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPaymentMethod('card')}
-                  className={`p-2 rounded-xl flex flex-col items-center gap-1 text-xs font-semibold border transition-all ${
-                    paymentMethod === 'card'
-                      ? 'bg-sky-500/20 border-sky-500/50 text-sky-300'
-                      : 'bg-dark-bg border-dark-border text-gray-400 hover:text-white'
-                  }`}
-                >
-                  <CreditCard className="w-4 h-4" />
-                  <span>Card</span>
-                </button>
-              </div>
-
-              {/* UPI Sub-providers */}
-              {paymentMethod === 'upi' && (
-                <div className="flex gap-1.5 pt-1">
-                  {[
-                    { id: 'google_pay', label: 'GPay' },
-                    { id: 'phonepe', label: 'PhonePe' },
-                    { id: 'paytm', label: 'Paytm' },
-                    { id: 'other', label: 'Other UPI' },
-                  ].map((p) => (
-                    <button
-                      key={p.id}
-                      type="button"
-                      onClick={() => setUpiProvider(p.id as any)}
-                      className={`flex-1 py-1 rounded-lg text-[10px] font-bold uppercase transition-all ${
-                        upiProvider === p.id
-                          ? 'bg-dark-card border border-brand-400 text-brand-300'
-                          : 'bg-dark-bg text-gray-500 hover:text-gray-300'
-                      }`}
+            {/* Cart Items Area */}
+            <div className="mt-4 pt-3 border-t border-[#F0EEEB] min-h-[100px] max-h-56 overflow-y-auto">
+              {cart.length === 0 ? (
+                <div className="py-8 text-center text-xs text-[#929292] font-normal">
+                  Add a service or product to begin
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {cart.map((item) => (
+                    <div
+                      key={item.service.id}
+                      className="p-2.5 rounded-xl bg-[#F7F6F5] border border-[#E8E5E3] flex items-center justify-between gap-2"
                     >
-                      {p.label}
-                    </button>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-semibold text-[#171717] truncate">
+                          {item.service.name}
+                        </p>
+                        <p className="text-[11px] font-mono text-[#E60023] font-bold">
+                          {formatCurrency(item.unit_price * item.quantity)}
+                        </p>
+                      </div>
+
+                      {/* Quantity stepper */}
+                      <div className="flex items-center gap-1.5 bg-white px-2 py-1 rounded-lg border border-[#E8E5E3]">
+                        <button
+                          type="button"
+                          onClick={() => updateQuantity(item.service.id, -1)}
+                          className="text-[#737373] hover:text-[#171717] p-0.5"
+                        >
+                          <Minus className="w-3 h-3" />
+                        </button>
+                        <span className="text-xs font-bold text-[#171717] px-1 font-mono">
+                          {item.quantity}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => updateQuantity(item.service.id, 1)}
+                          className="text-[#737373] hover:text-[#171717] p-0.5"
+                        >
+                          <Plus className="w-3 h-3" />
+                        </button>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => removeFromCart(item.service.id)}
+                        className="text-[#929292] hover:text-[#E60023] p-1 transition-colors"
+                        title="Remove item"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   ))}
                 </div>
               )}
             </div>
 
-            {/* Complete Sale Button */}
-            <button
-              onClick={handleCheckout}
-              disabled={isSubmitting || cart.length === 0}
-              className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-400 hover:to-brand-500 text-dark-bg font-extrabold text-sm tracking-wide transition-all shadow-xl shadow-brand-500/25 flex items-center justify-center gap-2 disabled:opacity-40"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin text-dark-bg" />
-                  <span>Settling Transaction...</span>
-                </>
-              ) : (
-                <>
-                  <CheckCircle className="w-4 h-4" />
-                  <span>Collect {formatCurrency(grandTotal)} & Generate Bill</span>
-                </>
-              )}
-            </button>
+            {/* Financial Controls: Discount & Payment Mode */}
+            <div className="grid grid-cols-2 gap-3 mt-4 pt-3.5 border-t border-[#F0EEEB]">
+              <div>
+                <label className="block text-[11px] font-medium text-[#737373] mb-1">
+                  Discount amount (₹)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={discountAmount || ''}
+                  placeholder="0"
+                  onChange={(e) => setDiscountAmount(Math.max(0, Number(e.target.value) || 0))}
+                  className="w-full px-3 py-1.5 text-xs font-mono rounded-xl border border-[#E8E5E3] bg-white text-[#171717] focus:outline-none focus:border-[#171717]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-medium text-[#737373] mb-1">
+                  Payment mode
+                </label>
+                <select
+                  value={paymentMethod}
+                  onChange={(e) => setPaymentMethod(e.target.value as any)}
+                  className="w-full px-3 py-1.5 text-xs rounded-xl border border-[#E8E5E3] bg-white text-[#171717] focus:outline-none focus:border-[#171717]"
+                >
+                  <option value="UPI">UPI</option>
+                  <option value="CASH">Cash</option>
+                  <option value="CARD">Card</option>
+                </select>
+              </div>
+            </div>
+
+            {/* GST Inclusion / Exclusion Radio Toggle */}
+            <div className="flex items-center gap-4 mt-3 pt-2">
+              <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-[#171717]">
+                <input
+                  type="radio"
+                  name="gst_toggle"
+                  checked={applyGst}
+                  onChange={() => setApplyGst(true)}
+                  className="w-3.5 h-3.5 text-[#E60023] focus:ring-[#E60023]"
+                />
+                <span>With GST (5%)</span>
+              </label>
+
+              <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-[#171717]">
+                <input
+                  type="radio"
+                  name="gst_toggle"
+                  checked={!applyGst}
+                  onChange={() => setApplyGst(false)}
+                  className="w-3.5 h-3.5 text-[#E60023] focus:ring-[#E60023]"
+                />
+                <span>Without GST</span>
+              </label>
+            </div>
+
+            {/* Bill Summary Breakdown */}
+            <div className="mt-4 pt-3 border-t border-[#F0EEEB] space-y-1.5 text-xs text-[#737373]">
+              <div className="flex justify-between">
+                <span>Subtotal</span>
+                <span className="font-mono text-[#171717] font-medium">₹{subtotal.toFixed(0)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Discount</span>
+                <span className="font-mono text-[#171717] font-medium">- ₹{discountAmount.toFixed(0)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>GST (5%)</span>
+                <span className="font-mono text-[#171717] font-medium">₹{taxAmount.toFixed(0)}</span>
+              </div>
+              <div className="flex justify-between items-center pt-2 border-t border-[#E8E5E3] text-sm font-bold text-[#171717]">
+                <span>Total amount</span>
+                <span className="text-base font-bold text-[#171717] font-mono">
+                  {formatCurrency(grandTotal)}
+                </span>
+              </div>
+            </div>
+
+            {/* Action Buttons: Save & Open WhatsApp + Save Bill Only */}
+            <div className="space-y-2 mt-5">
+              <button
+                type="button"
+                onClick={() => handleCheckout(true)}
+                disabled={isSubmitting || cart.length === 0}
+                className="w-full py-3 px-4 rounded-xl bg-[#E60023] hover:bg-[#C9001F] text-white font-bold text-xs tracking-wide transition-all shadow-sm flex items-center justify-center gap-2 disabled:opacity-40"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin text-white" />
+                    <span>Saving Bill &amp; Preparing WhatsApp...</span>
+                  </>
+                ) : (
+                  <>
+                    <MessageCircle className="w-4 h-4 text-white" />
+                    <span>Save Bill &amp; Open WhatsApp ({formatCurrency(grandTotal)})</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleCheckout(false)}
+                disabled={isSubmitting || cart.length === 0}
+                className="w-full py-2.5 px-4 rounded-xl bg-white hover:bg-[#F5F4F3] text-[#171717] border border-[#E8E5E3] font-semibold text-xs transition-all flex items-center justify-center gap-2 disabled:opacity-40"
+              >
+                <CheckCircle className="w-3.5 h-3.5 text-[#737373]" />
+                <span>Save Bill Only</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>

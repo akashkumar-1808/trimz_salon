@@ -1,3 +1,5 @@
+import re
+from urllib.parse import quote
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import List, Optional
@@ -11,12 +13,132 @@ from app.models.customer import Customer
 from app.models.sale import Sale, SaleItem, Payment
 from app.models.service import Service
 from app.models.invoice import Invoice
+from app.models.whatsapp import WhatsAppMessage
 from app.models.auth import User
 from app.models.audit import AuditLog
-from app.schemas.billing import CheckoutRequest, CheckoutResponse, SaleOut, InvoiceOut
+from app.schemas.billing import (
+    CheckoutRequest,
+    CheckoutResponse,
+    SaleOut,
+    InvoiceOut,
+    WhatsAppDeliveryStatus,
+    WhatsAppClickToChat
+)
 from app.api.deps import require_permission
+# Deferred future feature imports (preserved for on-demand/future releases)
+from app.services.whatsapp_dispatcher import get_or_generate_invoice_image, dispatch_invoice_whatsapp
 
 router = APIRouter(prefix="/billing", tags=["Billing & POS Checkout"])
+
+def normalize_whatsapp_phone(phone: Optional[str]) -> Optional[str]:
+    """
+    Normalizes a phone number to standard international format (digits only, no '+' or spaces).
+    For Indian numbers:
+    - 10 digits (e.g. 9876543210) -> '919876543210'
+    - 11 digits starting with 0 (e.g. 09876543210) -> '919876543210'
+    - 12 digits starting with 91 (e.g. 919876543210) -> '919876543210'
+    - +91 9876543210 -> '919876543210'
+    For other international numbers:
+    - 10 to 15 digits not matching Indian 10-digit format -> kept as is (no leading +)
+    Invalid length or non-digits -> None
+    """
+    if not phone:
+        return None
+    cleaned = re.sub(r"[^\d+]", "", str(phone).strip())
+    if cleaned.startswith("+"):
+        cleaned = cleaned[1:]
+    if not cleaned.isdigit():
+        return None
+
+    if len(cleaned) == 10:
+        return f"91{cleaned}"
+    if len(cleaned) == 11 and cleaned.startswith("0"):
+        return f"91{cleaned[1:]}"
+    if len(cleaned) == 12 and cleaned.startswith("91"):
+        return cleaned
+    if 10 <= len(cleaned) <= 15:
+        return cleaned
+    return None
+
+def generate_whatsapp_receipt_text(
+    business: Business,
+    sale: Sale,
+    invoice: Invoice,
+    customer: Customer
+) -> str:
+    """
+    Builds authoritative, formatted receipt text for WhatsApp click-to-chat.
+    """
+    biz_name = (business.name or "Trimz Salon").strip()
+    cust_name = (customer.name or "Valued Guest").strip()
+    created_time = sale.created_at.strftime("%d %b %Y, %I:%M %p") if sale.created_at else ""
+
+    lines = [
+        f"✨ *{biz_name.upper()}* ✨",
+        "━━━━━━━━━━━━━━━━━━━━",
+        f"📄 *Invoice #:* {invoice.invoice_number}",
+    ]
+    if created_time:
+        lines.append(f"📅 *Date:* {created_time}")
+    lines.append(f"👤 *Customer:* {cust_name}")
+    if sale.staff_name:
+        lines.append(f"✂️ *Stylist:* {sale.staff_name.strip()}")
+
+    lines.append("━━━━━━━━━━━━━━━━━━━━")
+    lines.append("*Services & Products:*")
+    for item in sale.items:
+        qty_str = f" x{item.quantity}" if item.quantity > 1 else ""
+        lines.append(f"• {item.service_name_snapshot}{qty_str} — ₹{item.total_price:,.2f}")
+
+    lines.append("━━━━━━━━━━━━━━━━━━━━")
+    lines.append(f"Subtotal: ₹{sale.subtotal:,.2f}")
+    if sale.discount_amount and sale.discount_amount > 0:
+        disc_reason = f" ({sale.discount_reason})" if sale.discount_reason else ""
+        lines.append(f"Discount{disc_reason}: -₹{sale.discount_amount:,.2f}")
+    if sale.tax_amount and sale.tax_amount > 0:
+        tax_label = f"{business.tax_name or 'GST'} ({sale.tax_percentage}%)"
+        lines.append(f"{tax_label}: ₹{sale.tax_amount:,.2f}")
+
+    lines.append(f"*Final Total:* ₹{sale.total_amount:,.2f}")
+
+    if sale.payments:
+        pm_parts = []
+        for p in sale.payments:
+            provider = f" ({p.payment_provider})" if p.payment_provider else ""
+            pm_parts.append(f"{p.payment_method}{provider}")
+        pm_str = ", ".join(pm_parts)
+        lines.append(f"Payment Mode: {pm_str} — *PAID*")
+    else:
+        lines.append("Payment Status: *PAID*")
+
+    lines.append("━━━━━━━━━━━━━━━━━━━━")
+    lines.append("Thank you for visiting Trimz Salon! See you again soon.")
+
+    return "\n".join(lines)
+
+def build_whatsapp_click_to_chat(
+    phone: Optional[str],
+    receipt_text: str,
+    requested: bool
+) -> tuple[Optional[str], WhatsAppClickToChat]:
+    normalized = normalize_whatsapp_phone(phone)
+    if not normalized:
+        return None, WhatsAppClickToChat(
+            enabled=False,
+            phone=None,
+            url=None,
+            message=None
+        )
+
+    encoded_text = quote(receipt_text)
+    wa_url = f"https://wa.me/{normalized}?text={encoded_text}"
+
+    return (wa_url if requested else None), WhatsAppClickToChat(
+        enabled=requested,
+        phone=normalized,
+        url=wa_url,
+        message=receipt_text
+    )
 
 def generate_thermal_receipt_text(business: Business, sale: Sale, invoice: Invoice, customer: Customer) -> str:
     lines = [
@@ -91,12 +213,20 @@ async def checkout(
             inv = inv_res.scalar_one()
             cust_res = await db.execute(select(Customer).where(Customer.id == existing.customer_id))
             cust = cust_res.scalar_one()
+            # Determine if WhatsApp opening was requested
+            should_open_wa = data.open_whatsapp if data.open_whatsapp is not None else data.send_whatsapp
+            wa_receipt_text = generate_whatsapp_receipt_text(business, existing, inv, cust)
+            wa_url, wa_c2c = build_whatsapp_click_to_chat(cust.phone, wa_receipt_text, should_open_wa)
+
             receipt = generate_thermal_receipt_text(business, existing, inv, cust)
             return CheckoutResponse(
                 success=True,
                 sale=SaleOut.model_validate(existing),
                 invoice=InvoiceOut.model_validate(inv),
-                receipt_text=receipt
+                receipt_text=receipt,
+                whatsapp_url=wa_url,
+                whatsapp_click_to_chat=wa_c2c,
+                whatsapp_delivery=None
             )
 
     # 2. Customer Lookup or Upsert
@@ -252,9 +382,10 @@ async def checkout(
     db.add(new_invoice)
 
     # 8. Update Customer Cache
-    customer.total_visits += 1
-    customer.total_spend += grand_total
-    customer.loyalty_points += int(grand_total // 100)
+    customer.total_visits = (customer.total_visits or 0) + 1
+    current_spend = Decimal(str(customer.total_spend or "0.00"))
+    customer.total_spend = current_spend + grand_total
+    customer.loyalty_points = (customer.loyalty_points or 0) + int(grand_total // 100)
     customer.last_visit_at = now_utc
 
     # 9. Audit Log
@@ -276,13 +407,23 @@ async def checkout(
     await db.refresh(new_sale)
     await db.refresh(new_invoice)
 
+    # 10. Prepare WhatsApp Click-to-Chat (Active Release)
+    # Automatic invoice PNG rendering and Cloud API message dispatch are deliberately
+    # deferred for future releases and not executed during standard billing checkout.
+    should_open_wa = data.open_whatsapp if data.open_whatsapp is not None else data.send_whatsapp
+    wa_receipt_text = generate_whatsapp_receipt_text(business, new_sale, new_invoice, customer)
+    wa_url, wa_c2c = build_whatsapp_click_to_chat(customer.phone, wa_receipt_text, should_open_wa)
+
     receipt = generate_thermal_receipt_text(business, new_sale, new_invoice, customer)
 
     return CheckoutResponse(
         success=True,
         sale=SaleOut.model_validate(new_sale),
         invoice=InvoiceOut.model_validate(new_invoice),
-        receipt_text=receipt
+        receipt_text=receipt,
+        whatsapp_url=wa_url,
+        whatsapp_click_to_chat=wa_c2c,
+        whatsapp_delivery=None
     )
 
 @router.get("/sales", response_model=List[SaleOut])

@@ -28,6 +28,7 @@ export default function ServicesPage() {
   const [search, setSearch] = useState('');
   const [selectedCat, setSelectedCat] = useState('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'paused'>('all');
+  const [selectedDepartment, setSelectedDepartment] = useState<'all' | 'Women' | 'Men'>('all');
 
   // Async action loading states & feedback
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
@@ -182,8 +183,6 @@ export default function ServicesPage() {
     }
   };
 
-  const [selectedDepartment, setSelectedDepartment] = useState<'all' | 'Women' | 'Men'>('all');
-
   const filteredCategories = categories.filter((c) => {
     if (selectedDepartment === 'all') return true;
     return c.department === selectedDepartment || c.department === 'Unisex' || !c.department;
@@ -223,106 +222,30 @@ export default function ServicesPage() {
   });
 
   return (
-    <div className="flex-1 flex flex-col min-h-screen">
+    <div className="flex-1 flex flex-col min-h-screen bg-workspace-bg">
       <Topbar title="Service Catalog & Rates" />
 
-      <div className="p-6 space-y-6 max-w-7xl mx-auto w-full">
-        {/* Feedback Alert Banner */}
-        {feedbackMessage && (
-          <div
-            className={`p-4 rounded-xl border flex items-center justify-between gap-3 text-xs font-medium transition-all ${
-              feedbackMessage.type === 'success'
-                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
-                : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              {feedbackMessage.type === 'success' ? (
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-              ) : (
-                <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
-              )}
-              <span>{feedbackMessage.text}</span>
-            </div>
-            <button
-              onClick={() => setFeedbackMessage(null)}
-              className="text-gray-400 hover:text-white p-1"
-            >
-              <X className="w-4 h-4" />
-            </button>
+      <main className="p-6 md:p-8 space-y-6 max-w-7xl mx-auto w-full">
+        {/* Header Kicker & Action Row */}
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+          <div>
+            <div className="text-[11px] font-bold uppercase tracking-widest text-text-muted">TRIMZ SALON CATALOGUE</div>
+            <h1 className="font-serif text-3xl font-bold text-text-primary tracking-tight mt-0.5">Services & Rates</h1>
+            <p className="text-sm text-text-secondary mt-1">
+              Manage salon services, pricing, departments, pause status, and active menu categories.
+            </p>
           </div>
-        )}
-
-        {/* Actions Bar & Department Selector */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-dark-surface p-4 rounded-2xl border border-dark-border">
-          {/* Department segmented switch */}
-          <div className="flex items-center gap-1.5 p-1 bg-dark-bg rounded-xl border border-dark-border shrink-0">
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedDepartment('Women');
-                setSelectedCat('all');
-              }}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                selectedDepartment === 'Women'
-                  ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40 shadow-sm'
-                  : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              Women&apos;s Lounge
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedDepartment('Men');
-                setSelectedCat('all');
-              }}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                selectedDepartment === 'Men'
-                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm'
-                  : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              Gentlemen&apos;s Lounge
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedDepartment('all');
-                setSelectedCat('all');
-              }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                selectedDepartment === 'all'
-                  ? 'bg-brand-500/20 text-brand-300 border border-brand-500/40 shadow-sm'
-                  : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              All
-            </button>
-          </div>
-
-          <div className="relative flex-1 max-w-md">
-            <Search className="w-4 h-4 text-gray-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="Search services, variants, combos..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full bg-dark-card border border-dark-border rounded-xl pl-10 pr-4 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-brand-500 transition-all"
-            />
-          </div>
-
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
             <button
               onClick={() => setIsCatModalOpen(true)}
-              className="px-3.5 py-2 rounded-xl bg-dark-card border border-dark-border hover:border-gray-600 text-gray-300 font-semibold text-xs transition-all flex items-center gap-1.5"
+              className="px-4 py-2 rounded-xl bg-white border border-workspace-border hover:bg-workspace-hover text-text-primary font-medium text-sm transition-all shadow-sm flex items-center gap-1.5"
             >
-              <Tag className="w-4 h-4 text-brand-400" />
+              <Tag className="w-4 h-4 text-text-secondary" />
               <span>+ Category</span>
             </button>
             <button
               onClick={() => setIsServiceModalOpen(true)}
-              className="px-4 py-2 rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-400 hover:to-brand-500 text-dark-bg font-bold text-xs transition-all shadow-md shadow-brand-500/20 flex items-center gap-1.5"
+              className="px-4 py-2 rounded-xl bg-primary hover:bg-primary-hover text-white font-medium text-sm transition-all shadow-sm flex items-center gap-1.5"
             >
               <Plus className="w-4 h-4" />
               <span>Add Service</span>
@@ -330,45 +253,101 @@ export default function ServicesPage() {
           </div>
         </div>
 
-        {/* Category & Status Filter Pills */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          {/* Categories */}
-          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none flex-1">
+        {/* Feedback Alert Banner */}
+        {feedbackMessage && (
+          <div
+            className={`p-4 rounded-xl border flex items-center justify-between gap-3 text-sm font-medium transition-all ${
+              feedbackMessage.type === 'success'
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                : 'bg-rose-50 border-rose-200 text-rose-800'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              {feedbackMessage.type === 'success' ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              ) : (
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+              )}
+              <span>{feedbackMessage.text}</span>
+            </div>
             <button
-              onClick={() => setSelectedCat('all')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
-                selectedCat === 'all'
-                  ? 'bg-brand-500 text-dark-bg shadow-sm'
-                  : 'bg-dark-surface text-gray-400 border border-dark-border hover:text-white'
+              onClick={() => setFeedbackMessage(null)}
+              className="text-text-muted hover:text-text-primary p-1"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
+        {/* Filter Bar & Search */}
+        <div className="bg-white p-4 rounded-2xl border border-workspace-border shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          {/* Department segmented switch */}
+          <div className="flex items-center gap-1.5 p-1 bg-workspace-bg rounded-xl border border-workspace-border shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedDepartment('all');
+                setSelectedCat('all');
+              }}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                selectedDepartment === 'all'
+                  ? 'bg-text-primary text-white shadow-sm'
+                  : 'text-text-secondary hover:text-text-primary'
               }`}
             >
-              All Categories ({filteredServices.length})
+              All
             </button>
-            {filteredCategories.map((c) => (
-              <button
-                key={c.id}
-                onClick={() => setSelectedCat(c.id)}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
-                  selectedCat === c.id
-                    ? 'bg-brand-500 text-dark-bg shadow-sm'
-                    : 'bg-dark-surface text-gray-400 border border-dark-border hover:text-white'
-                }`}
-              >
-                {c.name}
-              </button>
-            ))}
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedDepartment('Men');
+                setSelectedCat('all');
+              }}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                selectedDepartment === 'Men'
+                  ? 'bg-text-primary text-white shadow-sm'
+                  : 'text-text-secondary hover:text-text-primary'
+              }`}
+            >
+              Gentlemen&apos;s Lounge
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedDepartment('Women');
+                setSelectedCat('all');
+              }}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                selectedDepartment === 'Women'
+                  ? 'bg-text-primary text-white shadow-sm'
+                  : 'text-text-secondary hover:text-text-primary'
+              }`}
+            >
+              Women&apos;s Lounge
+            </button>
+          </div>
+
+          <div className="relative flex-1 max-w-md">
+            <Search className="w-4 h-4 text-text-muted absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder="Search services, variants, combos..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full bg-workspace-bg/50 border border-workspace-border rounded-xl pl-10 pr-4 py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-text-primary focus:bg-white transition-all"
+            />
           </div>
 
           {/* Status Filter Segment */}
-          <div className="flex items-center gap-1 p-1 bg-dark-surface rounded-xl border border-dark-border shrink-0 self-start sm:self-auto">
-            <span className="text-[11px] text-gray-500 font-medium px-2 hidden md:inline">Status:</span>
+          <div className="flex items-center gap-1 p-1 bg-workspace-bg rounded-xl border border-workspace-border shrink-0">
+            <span className="text-[11px] text-text-muted font-medium px-2 hidden sm:inline">Status:</span>
             <button
               type="button"
               onClick={() => setStatusFilter('all')}
               className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
                 statusFilter === 'all'
-                  ? 'bg-dark-card text-brand-300 border border-dark-border shadow-sm'
-                  : 'text-gray-400 hover:text-white'
+                  ? 'bg-white text-text-primary border border-workspace-border shadow-sm'
+                  : 'text-text-secondary hover:text-text-primary'
               }`}
             >
               All ({totalServicesCount})
@@ -378,11 +357,11 @@ export default function ServicesPage() {
               onClick={() => setStatusFilter('active')}
               className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
                 statusFilter === 'active'
-                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm'
-                  : 'text-gray-400 hover:text-emerald-300'
+                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-sm'
+                  : 'text-text-secondary hover:text-emerald-700'
               }`}
             >
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
               Active ({activeServicesCount})
             </button>
             <button
@@ -390,25 +369,52 @@ export default function ServicesPage() {
               onClick={() => setStatusFilter('paused')}
               className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
                 statusFilter === 'paused'
-                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm'
-                  : 'text-gray-400 hover:text-amber-300'
+                  ? 'bg-amber-50 text-amber-800 border border-amber-200 shadow-sm'
+                  : 'text-text-secondary hover:text-amber-700'
               }`}
             >
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-600" />
               Paused ({pausedServicesCount})
             </button>
           </div>
         </div>
 
-        {/* Services Table */}
-        <div className="bg-dark-surface border border-dark-border rounded-2xl overflow-hidden shadow-xl">
-          <div className="p-4 border-b border-dark-border flex items-center justify-between">
-            <h3 className="text-sm font-bold text-white flex items-center gap-2">
-              <Scissors className="w-4 h-4 text-brand-400" />
+        {/* Category Pills */}
+        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+          <button
+            onClick={() => setSelectedCat('all')}
+            className={`px-4 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all ${
+              selectedCat === 'all'
+                ? 'bg-text-primary text-white shadow-sm'
+                : 'bg-white text-text-primary border border-workspace-border hover:bg-workspace-hover'
+            }`}
+          >
+            All Categories ({filteredServices.length})
+          </button>
+          {filteredCategories.map((c) => (
+            <button
+              key={c.id}
+              onClick={() => setSelectedCat(c.id)}
+              className={`px-4 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all ${
+                selectedCat === c.id
+                  ? 'bg-text-primary text-white shadow-sm'
+                  : 'bg-white text-text-primary border border-workspace-border hover:bg-workspace-hover'
+              }`}
+            >
+              {c.name}
+            </button>
+          ))}
+        </div>
+
+        {/* Services Table Card */}
+        <div className="bg-white border border-workspace-border rounded-2xl overflow-hidden shadow-sm">
+          <div className="p-4 border-b border-workspace-border flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-text-primary flex items-center gap-2">
+              <Scissors className="w-4 h-4 text-primary" />
               <span>Catalog Services ({filteredServices.length})</span>
             </h3>
             {statusFilter !== 'all' && (
-              <span className="text-xs text-gray-400 font-mono">
+              <span className="text-xs text-text-secondary font-mono">
                 Showing {statusFilter.toUpperCase()} services
               </span>
             )}
@@ -416,17 +422,18 @@ export default function ServicesPage() {
 
           {loading ? (
             <div className="p-16 flex flex-col items-center justify-center gap-2">
-              <Loader2 className="w-6 h-6 animate-spin text-brand-400" />
+              <Loader2 className="w-6 h-6 animate-spin text-primary" />
+              <span className="text-xs text-text-muted">Loading catalogue...</span>
             </div>
           ) : filteredServices.length === 0 ? (
-            <div className="p-16 text-center text-gray-500 text-xs">
+            <div className="p-16 text-center text-text-muted text-sm">
               No services found matching the criteria.
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs">
+              <table className="w-full text-left border-collapse text-sm">
                 <thead>
-                  <tr className="border-b border-dark-border bg-dark-card/40 text-gray-400 font-semibold uppercase text-[11px]">
+                  <tr className="border-b border-workspace-border bg-workspace-bg/40 text-text-muted font-medium uppercase text-[11px] tracking-wider">
                     <th className="p-4">Service</th>
                     <th className="p-4">Category</th>
                     <th className="p-4">Audience</th>
@@ -436,64 +443,64 @@ export default function ServicesPage() {
                     <th className="p-4 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-dark-border">
+                <tbody className="divide-y divide-workspace-border">
                   {filteredServices.map((svc) => (
                     <tr 
                       key={svc.id} 
-                      className={`hover:bg-dark-card/50 transition-colors ${
-                        !svc.is_active ? 'bg-amber-950/10 opacity-90' : ''
+                      className={`hover:bg-workspace-hover/50 transition-colors ${
+                        !svc.is_active ? 'bg-amber-50/30' : ''
                       }`}
                     >
                       <td className="p-4">
-                        <div className="font-bold text-gray-100 flex items-center gap-2">
+                        <div className="font-semibold text-text-primary flex items-center gap-2">
                           <span>{svc.name}</span>
                           {!svc.is_active && (
-                            <span className="text-[10px] font-normal text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+                            <span className="text-[10px] font-medium text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
                               Paused
                             </span>
                           )}
                         </div>
                         {svc.variant_name && (
-                          <span className="inline-block mt-0.5 px-2 py-0.5 rounded bg-brand-500/10 border border-brand-500/30 text-brand-300 text-[10px] font-semibold">
+                          <span className="inline-block mt-0.5 px-2 py-0.5 rounded bg-workspace-bg border border-workspace-border text-text-secondary text-[11px] font-medium">
                             {svc.variant_name}
                           </span>
                         )}
                         {svc.combo_items && (
-                          <div className="text-[10px] text-gray-400 mt-1">
-                            <span className="text-brand-400 font-semibold">Includes: </span>
+                          <div className="text-[11px] text-text-muted mt-1">
+                            <span className="text-text-secondary font-medium">Includes: </span>
                             {svc.combo_items}
                           </div>
                         )}
                       </td>
-                      <td className="p-4 text-gray-400">{svc.category_name || '-'}</td>
+                      <td className="p-4 text-text-secondary text-xs">{svc.category_name || '-'}</td>
                       <td className="p-4">
-                        <span className="px-2 py-0.5 rounded-full bg-dark-card border border-dark-border text-gray-300 text-[10px] uppercase font-mono">
+                        <span className="px-2 py-0.5 rounded-full bg-workspace-bg border border-workspace-border text-text-secondary text-[11px] uppercase font-mono">
                           {svc.target_gender}
                         </span>
                       </td>
-                      <td className="p-4 text-gray-400">
+                      <td className="p-4 text-text-secondary text-xs">
                         <span className="flex items-center gap-1">
-                          <Clock className="w-3.5 h-3.5 text-gray-500" />
+                          <Clock className="w-3.5 h-3.5 text-text-muted" />
                           <span>{svc.duration_minutes} mins</span>
                         </span>
                       </td>
                       <td className="p-4">
                         {svc.is_active ? (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 border border-emerald-200 text-emerald-700">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
                             Active
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-500/10 border border-amber-500/30 text-amber-400">
-                            <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-amber-50 border border-amber-200 text-amber-700">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-600" />
                             Paused
                           </span>
                         )}
                       </td>
-                      <td className="p-4 text-right font-mono font-bold text-brand-300 text-sm">
+                      <td className="p-4 text-right font-mono font-bold text-primary text-sm">
                         {formatCurrency(svc.price)}
                         {svc.is_variable_price && (
-                          <span className="block text-[10px] text-amber-400 font-normal">onwards</span>
+                          <span className="block text-[10px] text-amber-600 font-normal">onwards</span>
                         )}
                       </td>
                       <td className="p-4 text-right">
@@ -505,7 +512,7 @@ export default function ServicesPage() {
                               setEditingService(svc);
                               setEditPrice(svc.price.toString());
                             }}
-                            className="px-2.5 py-1 rounded-lg bg-dark-card border border-dark-border hover:border-brand-500 text-gray-300 hover:text-brand-300 text-xs font-semibold inline-flex items-center gap-1 transition-all"
+                            className="px-2.5 py-1 rounded-lg bg-white border border-workspace-border hover:border-text-primary text-text-secondary hover:text-text-primary text-xs font-medium inline-flex items-center gap-1 transition-all shadow-sm"
                             title="Edit Service Rate"
                           >
                             <Edit3 className="w-3 h-3" />
@@ -518,13 +525,13 @@ export default function ServicesPage() {
                               type="button"
                               onClick={() => handlePauseService(svc)}
                               disabled={actionLoadingId === svc.id}
-                              className="px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/30 hover:border-amber-400 text-amber-300 text-xs font-semibold inline-flex items-center gap-1 transition-all disabled:opacity-50"
+                              className="px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-200 hover:border-amber-300 text-amber-800 text-xs font-medium inline-flex items-center gap-1 transition-all disabled:opacity-50"
                               title="Pause service (hides from billing/POS)"
                             >
                               {actionLoadingId === svc.id ? (
                                 <Loader2 className="w-3 h-3 animate-spin" />
                               ) : (
-                                <PauseCircle className="w-3 h-3" />
+                                <PauseCircle className="w-3 h-3 text-amber-600" />
                               )}
                               <span>Pause</span>
                             </button>
@@ -533,13 +540,13 @@ export default function ServicesPage() {
                               type="button"
                               onClick={() => handleResumeService(svc)}
                               disabled={actionLoadingId === svc.id}
-                              className="px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30 hover:border-emerald-400 text-emerald-300 text-xs font-semibold inline-flex items-center gap-1 transition-all disabled:opacity-50"
+                              className="px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200 hover:border-emerald-300 text-emerald-800 text-xs font-medium inline-flex items-center gap-1 transition-all disabled:opacity-50"
                               title="Resume service (makes available in billing/POS)"
                             >
                               {actionLoadingId === svc.id ? (
                                 <Loader2 className="w-3 h-3 animate-spin" />
                               ) : (
-                                <PlayCircle className="w-3 h-3" />
+                                <PlayCircle className="w-3 h-3 text-emerald-600" />
                               )}
                               <span>Resume</span>
                             </button>
@@ -550,7 +557,7 @@ export default function ServicesPage() {
                             type="button"
                             onClick={() => setServiceToDelete(svc)}
                             disabled={actionLoadingId === svc.id}
-                            className="p-1 rounded-lg bg-dark-card border border-dark-border hover:border-rose-500/50 text-gray-400 hover:text-rose-400 transition-all disabled:opacity-50"
+                            className="p-1.5 rounded-lg bg-white border border-workspace-border hover:border-rose-300 hover:bg-rose-50 text-text-muted hover:text-rose-600 transition-all disabled:opacity-50"
                             title="Remove service from catalogue"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -564,41 +571,41 @@ export default function ServicesPage() {
             </div>
           )}
         </div>
-      </div>
+      </main>
 
       {/* Remove Service Confirmation Modal */}
       {serviceToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="bg-dark-surface border border-dark-border rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="bg-white border border-workspace-border rounded-2xl w-full max-w-md p-6 shadow-xl space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="font-bold text-base text-white flex items-center gap-2">
-                <Trash2 className="w-4 h-4 text-rose-400" />
+              <h3 className="font-bold text-base text-text-primary flex items-center gap-2">
+                <Trash2 className="w-4 h-4 text-rose-600" />
                 <span>Remove Service</span>
               </h3>
               <button
                 onClick={() => setServiceToDelete(null)}
-                className="text-gray-400 hover:text-white"
+                className="text-text-muted hover:text-text-primary"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
             
-            <p className="text-xs text-gray-300 leading-relaxed">
-              Are you sure you want to remove <span className="font-bold text-white">&quot;{serviceToDelete.name}&quot;</span>
+            <p className="text-sm text-text-secondary leading-relaxed">
+              Are you sure you want to remove <span className="font-semibold text-text-primary">&quot;{serviceToDelete.name}&quot;</span>
               {serviceToDelete.variant_name ? ` (${serviceToDelete.variant_name})` : ''}?
             </p>
 
-            <div className="p-3.5 rounded-xl bg-dark-card border border-dark-border text-[11px] text-gray-400 leading-relaxed">
-              <span className="font-semibold text-gray-300 block mb-1">Non-Destructive Archiving:</span>
+            <div className="p-3.5 rounded-xl bg-workspace-bg border border-workspace-border text-xs text-text-secondary leading-relaxed">
+              <span className="font-semibold text-text-primary block mb-1">Non-Destructive Archiving:</span>
               This service will be deactivated and removed from the active salon menu. All past sales records, invoices, customer histories, and closing reports referencing this service will remain 100% intact.
             </div>
 
-            <div className="flex justify-end gap-2 pt-2 border-t border-dark-border">
+            <div className="flex justify-end gap-2 pt-2 border-t border-workspace-border">
               <button
                 type="button"
                 onClick={() => setServiceToDelete(null)}
                 disabled={actionLoadingId === serviceToDelete.id}
-                className="px-4 py-2 rounded-xl bg-dark-card border border-dark-border hover:border-gray-600 text-gray-300 text-xs font-semibold transition-all"
+                className="px-4 py-2 rounded-xl bg-white border border-workspace-border hover:bg-workspace-hover text-text-primary text-xs font-medium transition-all"
               >
                 Cancel
               </button>
@@ -606,7 +613,7 @@ export default function ServicesPage() {
                 type="button"
                 onClick={() => handleRemoveService(serviceToDelete)}
                 disabled={actionLoadingId === serviceToDelete.id}
-                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-md shadow-rose-600/20 transition-all disabled:opacity-50"
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold flex items-center gap-1.5 shadow-sm transition-all disabled:opacity-50"
               >
                 {actionLoadingId === serviceToDelete.id ? (
                   <>
@@ -624,42 +631,42 @@ export default function ServicesPage() {
 
       {/* Edit Price Modal */}
       {editingService && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-          <div className="bg-dark-surface border border-dark-border rounded-2xl w-full max-w-sm p-6 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white border border-workspace-border rounded-2xl w-full max-w-sm p-6 shadow-xl">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="font-bold text-base text-white">Update Service Rate</h3>
-              <button onClick={() => setEditingService(null)} className="text-gray-400 hover:text-white">
+              <h3 className="font-bold text-base text-text-primary">Update Service Rate</h3>
+              <button onClick={() => setEditingService(null)} className="text-text-muted hover:text-text-primary">
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <p className="text-xs text-gray-400 mb-4">{editingService.name}</p>
+            <p className="text-xs text-text-secondary mb-4">{editingService.name}</p>
             <form onSubmit={handleUpdatePrice} className="space-y-4">
               <div>
-                <label className="block text-xs text-gray-400 mb-1">New Price (₹)</label>
+                <label className="block text-xs font-medium text-text-secondary mb-1">New Price (₹)</label>
                 <input
                   type="number"
                   step="0.01"
                   required
                   value={editPrice}
                   onChange={(e) => setEditPrice(e.target.value)}
-                  className="w-full bg-dark-card border border-dark-border rounded-xl px-3 py-2 text-white font-mono text-sm"
+                  className="w-full bg-white border border-workspace-border rounded-xl px-3 py-2 text-text-primary font-mono text-sm focus:outline-none focus:border-text-primary"
                 />
               </div>
-              <p className="text-[10px] text-gray-500">
+              <p className="text-[11px] text-text-muted">
                 Note: Updating the price does not change historical invoices due to the price snapshot guarantee.
               </p>
               <div className="flex gap-3">
                 <button
                   type="button"
                   onClick={() => setEditingService(null)}
-                  className="flex-1 py-2 rounded-xl bg-dark-card text-gray-300 font-semibold text-xs"
+                  className="flex-1 py-2 rounded-xl bg-white border border-workspace-border hover:bg-workspace-hover text-text-primary font-medium text-xs"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={savingEdit}
-                  className="flex-1 py-2 rounded-xl bg-brand-500 hover:bg-brand-400 text-dark-bg font-bold text-xs"
+                  className="flex-1 py-2 rounded-xl bg-primary hover:bg-primary-hover text-white font-medium text-xs shadow-sm"
                 >
                   {savingEdit ? 'Updating...' : 'Save New Rate'}
                 </button>
@@ -671,32 +678,32 @@ export default function ServicesPage() {
 
       {/* Create Service Modal */}
       {isServiceModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-          <div className="bg-dark-surface border border-dark-border rounded-2xl w-full max-w-md p-6 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white border border-workspace-border rounded-2xl w-full max-w-md p-6 shadow-xl">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="font-bold text-base text-white">Create New Service</h3>
-              <button onClick={() => setIsServiceModalOpen(false)} className="text-gray-400 hover:text-white">
+              <h3 className="font-bold text-base text-text-primary">Create New Service</h3>
+              <button onClick={() => setIsServiceModalOpen(false)} className="text-text-muted hover:text-text-primary">
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <form onSubmit={handleCreateService} className="space-y-3 text-xs">
+            <form onSubmit={handleCreateService} className="space-y-3.5 text-xs">
               <div>
-                <label className="block text-gray-400 mb-1">Service Title *</label>
+                <label className="block text-text-secondary font-medium mb-1">Service Title *</label>
                 <input
                   type="text"
                   required
                   value={svcName}
                   onChange={(e) => setSvcName(e.target.value)}
                   placeholder="e.g. Keratin Therapy"
-                  className="w-full bg-dark-card border border-dark-border rounded-xl px-3 py-2 text-white"
+                  className="w-full bg-white border border-workspace-border rounded-xl px-3 py-2 text-text-primary text-sm focus:outline-none focus:border-text-primary"
                 />
               </div>
               <div>
-                <label className="block text-gray-400 mb-1">Category *</label>
+                <label className="block text-text-secondary font-medium mb-1">Category *</label>
                 <select
                   value={svcCatId}
                   onChange={(e) => setSvcCatId(e.target.value)}
-                  className="w-full bg-dark-card border border-dark-border rounded-xl px-3 py-2 text-white"
+                  className="w-full bg-white border border-workspace-border rounded-xl px-3 py-2 text-text-primary text-sm focus:outline-none focus:border-text-primary"
                 >
                   {categories.map((c) => (
                     <option key={c.id} value={c.id}>{c.name}</option>
@@ -705,7 +712,7 @@ export default function ServicesPage() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-gray-400 mb-1">Price (₹) *</label>
+                  <label className="block text-text-secondary font-medium mb-1">Price (₹) *</label>
                   <input
                     type="number"
                     step="0.01"
@@ -713,25 +720,25 @@ export default function ServicesPage() {
                     value={svcPrice}
                     onChange={(e) => setSvcPrice(e.target.value)}
                     placeholder="500"
-                    className="w-full bg-dark-card border border-dark-border rounded-xl px-3 py-2 text-white font-mono"
+                    className="w-full bg-white border border-workspace-border rounded-xl px-3 py-2 text-text-primary font-mono text-sm focus:outline-none focus:border-text-primary"
                   />
                 </div>
                 <div>
-                  <label className="block text-gray-400 mb-1">Duration (Mins)</label>
+                  <label className="block text-text-secondary font-medium mb-1">Duration (Mins)</label>
                   <input
                     type="number"
                     value={svcDuration}
                     onChange={(e) => setSvcDuration(e.target.value)}
-                    className="w-full bg-dark-card border border-dark-border rounded-xl px-3 py-2 text-white font-mono"
+                    className="w-full bg-white border border-workspace-border rounded-xl px-3 py-2 text-text-primary font-mono text-sm focus:outline-none focus:border-text-primary"
                   />
                 </div>
               </div>
               <div>
-                <label className="block text-gray-400 mb-1">Target Audience</label>
+                <label className="block text-text-secondary font-medium mb-1">Target Audience</label>
                 <select
                   value={svcGender}
                   onChange={(e) => setSvcGender(e.target.value)}
-                  className="w-full bg-dark-card border border-dark-border rounded-xl px-3 py-2 text-white"
+                  className="w-full bg-white border border-workspace-border rounded-xl px-3 py-2 text-text-primary text-sm focus:outline-none focus:border-text-primary"
                 >
                   <option value="all">Unisex / All</option>
                   <option value="men">Men Only</option>
@@ -743,14 +750,14 @@ export default function ServicesPage() {
                 <button
                   type="button"
                   onClick={() => setIsServiceModalOpen(false)}
-                  className="flex-1 py-2.5 rounded-xl bg-dark-card text-gray-300 font-semibold"
+                  className="flex-1 py-2.5 rounded-xl bg-white border border-workspace-border hover:bg-workspace-hover text-text-primary font-medium text-sm"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={savingService}
-                  className="flex-1 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 text-dark-bg font-bold"
+                  className="flex-1 py-2.5 rounded-xl bg-primary hover:bg-primary-hover text-white font-medium text-sm shadow-sm"
                 >
                   {savingService ? 'Creating...' : 'Save Service'}
                 </button>
@@ -762,38 +769,38 @@ export default function ServicesPage() {
 
       {/* Create Category Modal */}
       {isCatModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-          <div className="bg-dark-surface border border-dark-border rounded-2xl w-full max-w-sm p-6 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white border border-workspace-border rounded-2xl w-full max-w-sm p-6 shadow-xl">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="font-bold text-base text-white">Add Service Category</h3>
-              <button onClick={() => setIsCatModalOpen(false)} className="text-gray-400 hover:text-white">
+              <h3 className="font-bold text-base text-text-primary">Add Service Category</h3>
+              <button onClick={() => setIsCatModalOpen(false)} className="text-text-muted hover:text-text-primary">
                 <X className="w-5 h-5" />
               </button>
             </div>
             <form onSubmit={handleCreateCategory} className="space-y-4">
               <div>
-                <label className="block text-xs text-gray-400 mb-1">Category Title *</label>
+                <label className="block text-xs font-medium text-text-secondary mb-1">Category Title *</label>
                 <input
                   type="text"
                   required
                   value={newCatName}
                   onChange={(e) => setNewCatName(e.target.value)}
                   placeholder="e.g. Bridal & Make-up"
-                  className="w-full bg-dark-card border border-dark-border rounded-xl px-3 py-2 text-white text-xs"
+                  className="w-full bg-white border border-workspace-border rounded-xl px-3 py-2 text-text-primary text-sm focus:outline-none focus:border-text-primary"
                 />
               </div>
               <div className="flex gap-3">
                 <button
                   type="button"
                   onClick={() => setIsCatModalOpen(false)}
-                  className="flex-1 py-2 rounded-xl bg-dark-card text-gray-300 font-semibold text-xs"
+                  className="flex-1 py-2 rounded-xl bg-white border border-workspace-border hover:bg-workspace-hover text-text-primary font-medium text-xs"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={savingCat}
-                  className="flex-1 py-2 rounded-xl bg-brand-500 hover:bg-brand-400 text-dark-bg font-bold text-xs"
+                  className="flex-1 py-2 rounded-xl bg-primary hover:bg-primary-hover text-white font-medium text-xs shadow-sm"
                 >
                   {savingCat ? 'Saving...' : 'Add Category'}
                 </button>

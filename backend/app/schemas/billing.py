@@ -31,6 +31,14 @@ class CheckoutRequest(BaseModel):
     payments: List[PaymentIn]
     staff_name: Optional[str] = None
     notes: Optional[str] = None
+    send_whatsapp: bool = True
+    open_whatsapp: Optional[bool] = None # Open WhatsApp click-to-chat after checkout
+
+class WhatsAppClickToChat(BaseModel):
+    enabled: bool
+    phone: Optional[str] = None
+    url: Optional[str] = None
+    message: Optional[str] = None
 
 class SaleItemOut(BaseModel):
     id: UUID
@@ -68,12 +76,20 @@ class InvoiceOut(BaseModel):
     total_amount: Decimal
     currency: str
     pdf_url: Optional[str] = None
+    image_url: Optional[str] = None
+    render_status: Optional[str] = "PENDING"
     customer_name: Optional[str] = None
     customer_phone: Optional[str] = None
     created_at: datetime
 
     class Config:
         from_attributes = True
+
+class WhatsAppDeliveryStatus(BaseModel):
+    status: str
+    recipient_phone: Optional[str] = None
+    message_id: Optional[str] = None
+    error: Optional[str] = None
 
 class SaleOut(BaseModel):
     id: UUID
@@ -103,3 +119,6 @@ class CheckoutResponse(BaseModel):
     sale: SaleOut
     invoice: InvoiceOut
     receipt_text: str
+    whatsapp_url: Optional[str] = None
+    whatsapp_click_to_chat: Optional[WhatsAppClickToChat] = None
+    whatsapp_delivery: Optional[WhatsAppDeliveryStatus] = None # Preserved for deferred future features

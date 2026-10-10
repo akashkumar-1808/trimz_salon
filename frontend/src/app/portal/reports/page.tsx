@@ -136,19 +136,30 @@ export default function ReportsPage() {
   };
 
   return (
-    <div className="flex-1 flex flex-col min-h-screen">
+    <div className="flex-1 flex flex-col min-h-screen bg-workspace-bg">
       <Topbar title="Financial Reports & Daily Closing" />
 
-      <div className="p-6 space-y-6 max-w-7xl mx-auto w-full">
+      <main className="p-6 md:p-8 space-y-6 max-w-7xl mx-auto w-full">
+        {/* Header Kicker */}
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+          <div>
+            <div className="text-[11px] font-bold uppercase tracking-widest text-text-muted">TRIMZ SALON ANALYTICS</div>
+            <h1 className="font-serif text-3xl font-bold text-text-primary tracking-tight mt-0.5">Reports & Daily Closing</h1>
+            <p className="text-sm text-text-secondary mt-1">
+              End-of-day register balancing, historical revenue trends, CSV exports, and customer purchase logs.
+            </p>
+          </div>
+        </div>
+
         {/* Navigation Tabs */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-dark-surface p-3 rounded-2xl border border-dark-border">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-3 rounded-2xl border border-workspace-border shadow-sm">
           <div className="flex gap-2">
             <button
               onClick={() => setActiveTab('daily')}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
                 activeTab === 'daily'
-                  ? 'bg-brand-500 text-dark-bg shadow-md shadow-brand-500/20'
-                  : 'text-gray-400 hover:text-white hover:bg-dark-card'
+                  ? 'bg-text-primary text-white shadow-sm'
+                  : 'text-text-secondary hover:text-text-primary hover:bg-workspace-hover'
               }`}
             >
               <Clock className="w-4 h-4" />
@@ -158,8 +169,8 @@ export default function ReportsPage() {
               onClick={() => setActiveTab('summary')}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
                 activeTab === 'summary'
-                  ? 'bg-brand-500 text-dark-bg shadow-md shadow-brand-500/20'
-                  : 'text-gray-400 hover:text-white hover:bg-dark-card'
+                  ? 'bg-text-primary text-white shadow-sm'
+                  : 'text-text-secondary hover:text-text-primary hover:bg-workspace-hover'
               }`}
             >
               <BarChart3 className="w-4 h-4" />
@@ -169,8 +180,8 @@ export default function ReportsPage() {
               onClick={() => setActiveTab('customer')}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
                 activeTab === 'customer'
-                  ? 'bg-brand-500 text-dark-bg shadow-md shadow-brand-500/20'
-                  : 'text-gray-400 hover:text-white hover:bg-dark-card'
+                  ? 'bg-text-primary text-white shadow-sm'
+                  : 'text-text-secondary hover:text-text-primary hover:bg-workspace-hover'
               }`}
             >
               <Users className="w-4 h-4" />
@@ -182,12 +193,12 @@ export default function ReportsPage() {
             <button
               onClick={handleExportCsv}
               disabled={exportingCsv}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 font-semibold text-xs transition-all disabled:opacity-50"
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-workspace-border hover:bg-workspace-hover text-text-primary font-medium text-xs transition-all shadow-sm disabled:opacity-50"
             >
               {exportingCsv ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
+                <Loader2 className="w-4 h-4 animate-spin text-primary" />
               ) : (
-                <ArrowDownToLine className="w-4 h-4" />
+                <ArrowDownToLine className="w-4 h-4 text-emerald-600" />
               )}
               <span>Export CSV</span>
             </button>
@@ -198,10 +209,10 @@ export default function ReportsPage() {
         {activeTab === 'daily' && (
           <div className="space-y-6">
             {/* Date Picker Bar */}
-            <div className="bg-dark-surface p-4 rounded-2xl border border-dark-border flex flex-wrap items-center justify-between gap-4">
+            <div className="bg-white p-4 rounded-2xl border border-workspace-border shadow-sm flex flex-wrap items-center justify-between gap-4">
               <div className="flex items-center gap-3">
-                <Calendar className="w-4 h-4 text-brand-400" />
-                <span className="text-xs font-bold text-gray-300">Select Business Day:</span>
+                <Calendar className="w-4 h-4 text-primary" />
+                <span className="text-xs font-semibold text-text-primary">Select Business Day:</span>
                 <input
                   type="date"
                   value={dailyDate}
@@ -209,89 +220,89 @@ export default function ReportsPage() {
                     setDailyDate(e.target.value);
                     fetchDailyClosing(e.target.value);
                   }}
-                  className="bg-dark-card border border-dark-border rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-brand-500"
+                  className="bg-workspace-bg border border-workspace-border rounded-xl px-3 py-1.5 text-xs text-text-primary focus:outline-none focus:border-text-primary focus:bg-white"
                 />
               </div>
-              <span className="text-xs text-gray-500 font-mono">
+              <span className="text-xs text-text-muted font-mono">
                 Real-time transaction settlement for {dailyDate}
               </span>
             </div>
 
             {loadingDaily ? (
               <div className="h-64 flex flex-col items-center justify-center gap-3">
-                <Loader2 className="w-8 h-8 animate-spin text-brand-400" />
-                <span className="text-xs text-gray-500 font-mono">Calculating daily settlement totals...</span>
+                <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                <span className="text-xs text-text-muted font-mono">Calculating daily settlement totals...</span>
               </div>
             ) : dailyData ? (
               <>
                 {/* Daily Metric Cards */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <div className="bg-dark-surface border border-dark-border p-5 rounded-2xl">
-                    <span className="text-xs text-gray-400 uppercase tracking-wider font-medium">Total Revenue</span>
-                    <h3 className="text-2xl font-black text-white font-mono mt-2">
+                  <div className="bg-white border border-workspace-border p-5 rounded-2xl shadow-sm">
+                    <span className="text-xs text-text-muted uppercase tracking-wider font-medium">Total Revenue</span>
+                    <h3 className="text-2xl font-bold text-primary font-mono mt-2">
                       {formatCurrency(dailyData.total_revenue || 0)}
                     </h3>
-                    <p className="text-[11px] text-emerald-400 mt-1">
+                    <p className="text-[11px] text-emerald-600 font-medium mt-1">
                       {dailyData.completed_bills} completed bill(s)
                     </p>
                   </div>
 
-                  <div className="bg-dark-surface border border-dark-border p-5 rounded-2xl">
-                    <span className="text-xs text-gray-400 uppercase tracking-wider font-medium">Cash Collected</span>
-                    <h3 className="text-2xl font-black text-emerald-400 font-mono mt-2 flex items-center gap-2">
-                      <Banknote className="w-5 h-5 text-emerald-400" />
+                  <div className="bg-white border border-workspace-border p-5 rounded-2xl shadow-sm">
+                    <span className="text-xs text-text-muted uppercase tracking-wider font-medium">Cash Collected</span>
+                    <h3 className="text-2xl font-bold text-text-primary font-mono mt-2 flex items-center gap-2">
+                      <Banknote className="w-5 h-5 text-emerald-600" />
                       {formatCurrency(dailyData.cash_total || 0)}
                     </h3>
-                    <p className="text-[11px] text-gray-500 mt-1">Cash in register drawer</p>
+                    <p className="text-[11px] text-text-muted mt-1">Cash in register drawer</p>
                   </div>
 
-                  <div className="bg-dark-surface border border-dark-border p-5 rounded-2xl">
-                    <span className="text-xs text-gray-400 uppercase tracking-wider font-medium">UPI / QR Settlements</span>
-                    <h3 className="text-2xl font-black text-blue-400 font-mono mt-2 flex items-center gap-2">
-                      <Smartphone className="w-5 h-5 text-blue-400" />
+                  <div className="bg-white border border-workspace-border p-5 rounded-2xl shadow-sm">
+                    <span className="text-xs text-text-muted uppercase tracking-wider font-medium">UPI / QR Settlements</span>
+                    <h3 className="text-2xl font-bold text-text-primary font-mono mt-2 flex items-center gap-2">
+                      <Smartphone className="w-5 h-5 text-blue-600" />
                       {formatCurrency(dailyData.upi_total || 0)}
                     </h3>
-                    <p className="text-[11px] text-gray-500 mt-1">PhonePe, GPay, Paytm</p>
+                    <p className="text-[11px] text-text-muted mt-1">PhonePe, GPay, Paytm</p>
                   </div>
 
-                  <div className="bg-dark-surface border border-dark-border p-5 rounded-2xl">
-                    <span className="text-xs text-gray-400 uppercase tracking-wider font-medium">Card POS Swipes</span>
-                    <h3 className="text-2xl font-black text-amber-400 font-mono mt-2 flex items-center gap-2">
-                      <CreditCard className="w-5 h-5 text-amber-400" />
+                  <div className="bg-white border border-workspace-border p-5 rounded-2xl shadow-sm">
+                    <span className="text-xs text-text-muted uppercase tracking-wider font-medium">Card POS Swipes</span>
+                    <h3 className="text-2xl font-bold text-text-primary font-mono mt-2 flex items-center gap-2">
+                      <CreditCard className="w-5 h-5 text-amber-600" />
                       {formatCurrency(dailyData.card_total || 0)}
                     </h3>
-                    <p className="text-[11px] text-gray-500 mt-1">Debit & Credit Cards</p>
+                    <p className="text-[11px] text-text-muted mt-1">Debit & Credit Cards</p>
                   </div>
                 </div>
 
                 {/* Additional Stats & Top Services */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {/* Ledger Breakdown */}
-                  <div className="bg-dark-surface border border-dark-border p-5 rounded-2xl space-y-4">
-                    <h4 className="text-sm font-bold text-white flex items-center gap-2">
-                      <Layers className="w-4 h-4 text-brand-400" />
+                  <div className="bg-white border border-workspace-border p-5 rounded-2xl shadow-sm space-y-4">
+                    <h4 className="text-sm font-semibold text-text-primary flex items-center gap-2">
+                      <Layers className="w-4 h-4 text-primary" />
                       <span>Ledger Balance Breakdown</span>
                     </h4>
-                    <div className="space-y-2 text-xs divide-y divide-dark-border">
-                      <div className="flex justify-between py-2 text-gray-300">
+                    <div className="space-y-2 text-xs divide-y divide-workspace-border">
+                      <div className="flex justify-between py-2 text-text-secondary">
                         <span>Total Bills Issued:</span>
-                        <span className="font-mono font-bold text-white">{dailyData.total_bills}</span>
+                        <span className="font-mono font-bold text-text-primary">{dailyData.total_bills}</span>
                       </div>
-                      <div className="flex justify-between py-2 text-gray-300">
+                      <div className="flex justify-between py-2 text-text-secondary">
                         <span>Cancelled / Voided Bills:</span>
-                        <span className="font-mono font-bold text-rose-400">{dailyData.cancelled_bills}</span>
+                        <span className="font-mono font-bold text-rose-600">{dailyData.cancelled_bills}</span>
                       </div>
-                      <div className="flex justify-between py-2 text-gray-300">
+                      <div className="flex justify-between py-2 text-text-secondary">
                         <span>Discounts Conceded:</span>
-                        <span className="font-mono font-bold text-emerald-400">-{formatCurrency(dailyData.total_discount || 0)}</span>
+                        <span className="font-mono font-bold text-emerald-600">-{formatCurrency(dailyData.total_discount || 0)}</span>
                       </div>
-                      <div className="flex justify-between py-2 text-gray-300">
+                      <div className="flex justify-between py-2 text-text-secondary">
                         <span>GST / Taxes Collected:</span>
-                        <span className="font-mono font-bold text-amber-400">+{formatCurrency(dailyData.total_tax || 0)}</span>
+                        <span className="font-mono font-bold text-text-secondary">+{formatCurrency(dailyData.total_tax || 0)}</span>
                       </div>
-                      <div className="flex justify-between py-2 text-sm font-bold text-white pt-3">
+                      <div className="flex justify-between py-2 text-sm font-bold text-text-primary pt-3">
                         <span>Net Daily Revenue:</span>
-                        <span className="font-mono text-brand-400">
+                        <span className="font-mono text-primary font-bold">
                           {formatCurrency((dailyData.total_revenue || 0) - (dailyData.total_tax || 0))}
                         </span>
                       </div>
@@ -299,13 +310,13 @@ export default function ReportsPage() {
                   </div>
 
                   {/* Top Services of the Day */}
-                  <div className="bg-dark-surface border border-dark-border p-5 rounded-2xl space-y-4">
-                    <h4 className="text-sm font-bold text-white flex items-center gap-2">
-                      <Scissors className="w-4 h-4 text-brand-400" />
+                  <div className="bg-white border border-workspace-border p-5 rounded-2xl shadow-sm space-y-4">
+                    <h4 className="text-sm font-semibold text-text-primary flex items-center gap-2">
+                      <Scissors className="w-4 h-4 text-primary" />
                       <span>Top Performing Services Today</span>
                     </h4>
                     {dailyData.top_services?.length === 0 ? (
-                      <div className="p-8 text-center text-xs text-gray-500">
+                      <div className="p-8 text-center text-xs text-text-muted">
                         No service sales recorded for this date.
                       </div>
                     ) : (
@@ -313,13 +324,13 @@ export default function ReportsPage() {
                         {dailyData.top_services?.map((svc: any, idx: number) => (
                           <div
                             key={idx}
-                            className="flex items-center justify-between p-3 rounded-xl bg-dark-card border border-dark-border text-xs"
+                            className="flex items-center justify-between p-3 rounded-xl bg-workspace-bg border border-workspace-border text-xs"
                           >
                             <div>
-                              <p className="font-bold text-gray-200">{svc.name}</p>
-                              <p className="text-[11px] text-gray-500 font-mono">Count: {svc.quantity} session(s)</p>
+                              <p className="font-semibold text-text-primary">{svc.name}</p>
+                              <p className="text-[11px] text-text-muted font-mono">Count: {svc.quantity} session(s)</p>
                             </div>
-                            <span className="font-mono font-bold text-brand-400 text-sm">
+                            <span className="font-mono font-bold text-primary text-sm">
                               {formatCurrency(svc.revenue)}
                             </span>
                           </div>
@@ -337,91 +348,91 @@ export default function ReportsPage() {
         {activeTab === 'summary' && (
           <div className="space-y-6">
             {/* Date Range Picker */}
-            <div className="bg-dark-surface p-4 rounded-2xl border border-dark-border flex flex-wrap items-center justify-between gap-4">
+            <div className="bg-white p-4 rounded-2xl border border-workspace-border shadow-sm flex flex-wrap items-center justify-between gap-4">
               <div className="flex flex-wrap items-center gap-3">
-                <Calendar className="w-4 h-4 text-brand-400" />
-                <span className="text-xs font-bold text-gray-300">From:</span>
+                <Calendar className="w-4 h-4 text-primary" />
+                <span className="text-xs font-semibold text-text-primary">From:</span>
                 <input
                   type="date"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
-                  className="bg-dark-card border border-dark-border rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-brand-500"
+                  className="bg-workspace-bg border border-workspace-border rounded-xl px-3 py-1.5 text-xs text-text-primary focus:outline-none focus:border-text-primary focus:bg-white"
                 />
-                <span className="text-xs font-bold text-gray-300">To:</span>
+                <span className="text-xs font-semibold text-text-primary">To:</span>
                 <input
                   type="date"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
-                  className="bg-dark-card border border-dark-border rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-brand-500"
+                  className="bg-workspace-bg border border-workspace-border rounded-xl px-3 py-1.5 text-xs text-text-primary focus:outline-none focus:border-text-primary focus:bg-white"
                 />
                 <button
                   onClick={() => fetchSalesSummary(startDate, endDate)}
-                  className="px-4 py-1.5 rounded-xl bg-brand-500 hover:bg-brand-400 text-dark-bg font-bold text-xs transition-all shadow-md shadow-brand-500/20"
+                  className="px-4 py-1.5 rounded-xl bg-primary hover:bg-primary-hover text-white font-medium text-xs transition-all shadow-sm"
                 >
                   Apply Filter
                 </button>
               </div>
-              <span className="text-xs text-gray-500 font-mono">
+              <span className="text-xs text-text-muted font-mono">
                 {summaryData?.total_bills || 0} total transactions in period
               </span>
             </div>
 
             {loadingSummary ? (
               <div className="h-64 flex flex-col items-center justify-center gap-3">
-                <Loader2 className="w-8 h-8 animate-spin text-brand-400" />
-                <span className="text-xs text-gray-500 font-mono">Aggregating date range revenue...</span>
+                <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                <span className="text-xs text-text-muted font-mono">Aggregating date range revenue...</span>
               </div>
             ) : summaryData ? (
               <>
                 {/* Metric Cards */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <div className="bg-dark-surface border border-dark-border p-5 rounded-2xl">
-                    <span className="text-xs text-gray-400 uppercase tracking-wider font-medium">Period Gross Sales</span>
-                    <h3 className="text-2xl font-black text-white font-mono mt-2">
+                  <div className="bg-white border border-workspace-border p-5 rounded-2xl shadow-sm">
+                    <span className="text-xs text-text-muted uppercase tracking-wider font-medium">Period Gross Sales</span>
+                    <h3 className="text-2xl font-bold text-primary font-mono mt-2">
                       {formatCurrency(summaryData.total_revenue || 0)}
                     </h3>
-                    <p className="text-[11px] text-gray-500 mt-1">
+                    <p className="text-[11px] text-text-muted mt-1">
                       {summaryData.completed_bills} completed sale(s)
                     </p>
                   </div>
 
-                  <div className="bg-dark-surface border border-dark-border p-5 rounded-2xl">
-                    <span className="text-xs text-gray-400 uppercase tracking-wider font-medium">UPI Total</span>
-                    <h3 className="text-2xl font-black text-blue-400 font-mono mt-2">
+                  <div className="bg-white border border-workspace-border p-5 rounded-2xl shadow-sm">
+                    <span className="text-xs text-text-muted uppercase tracking-wider font-medium">UPI Total</span>
+                    <h3 className="text-2xl font-bold text-text-primary font-mono mt-2">
                       {formatCurrency(summaryData.payment_methods?.UPI || 0)}
                     </h3>
-                    <p className="text-[11px] text-gray-500 mt-1">Digital payments</p>
+                    <p className="text-[11px] text-text-muted mt-1">Digital payments</p>
                   </div>
 
-                  <div className="bg-dark-surface border border-dark-border p-5 rounded-2xl">
-                    <span className="text-xs text-gray-400 uppercase tracking-wider font-medium">Cash Total</span>
-                    <h3 className="text-2xl font-black text-emerald-400 font-mono mt-2">
+                  <div className="bg-white border border-workspace-border p-5 rounded-2xl shadow-sm">
+                    <span className="text-xs text-text-muted uppercase tracking-wider font-medium">Cash Total</span>
+                    <h3 className="text-2xl font-bold text-text-primary font-mono mt-2">
                       {formatCurrency(summaryData.payment_methods?.CASH || 0)}
                     </h3>
-                    <p className="text-[11px] text-gray-500 mt-1">Physical currency</p>
+                    <p className="text-[11px] text-text-muted mt-1">Physical currency</p>
                   </div>
 
-                  <div className="bg-dark-surface border border-dark-border p-5 rounded-2xl">
-                    <span className="text-xs text-gray-400 uppercase tracking-wider font-medium">Card Total</span>
-                    <h3 className="text-2xl font-black text-amber-400 font-mono mt-2">
+                  <div className="bg-white border border-workspace-border p-5 rounded-2xl shadow-sm">
+                    <span className="text-xs text-text-muted uppercase tracking-wider font-medium">Card Total</span>
+                    <h3 className="text-2xl font-bold text-text-primary font-mono mt-2">
                       {formatCurrency(summaryData.payment_methods?.CARD || 0)}
                     </h3>
-                    <p className="text-[11px] text-gray-500 mt-1">Terminal swipes</p>
+                    <p className="text-[11px] text-text-muted mt-1">Terminal swipes</p>
                   </div>
                 </div>
 
                 {/* Daily Trend Table */}
-                <div className="bg-dark-surface border border-dark-border rounded-2xl overflow-hidden shadow-xl">
-                  <div className="p-4 border-b border-dark-border">
-                    <h4 className="text-sm font-bold text-white flex items-center gap-2">
-                      <TrendingUp className="w-4 h-4 text-brand-400" />
+                <div className="bg-white border border-workspace-border rounded-2xl overflow-hidden shadow-sm">
+                  <div className="p-4 border-b border-workspace-border">
+                    <h4 className="text-sm font-semibold text-text-primary flex items-center gap-2">
+                      <TrendingUp className="w-4 h-4 text-primary" />
                       <span>Daily Performance Ledger</span>
                     </h4>
                   </div>
                   <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs border-collapse">
+                    <table className="w-full text-left text-sm border-collapse">
                       <thead>
-                        <tr className="border-b border-dark-border bg-dark-card/40 text-gray-400 font-semibold uppercase text-[11px]">
+                        <tr className="border-b border-workspace-border bg-workspace-bg/40 text-text-muted font-medium uppercase text-[11px] tracking-wider">
                           <th className="p-4">Date</th>
                           <th className="p-4">Bills</th>
                           <th className="p-4">Cash (₹)</th>
@@ -430,15 +441,15 @@ export default function ReportsPage() {
                           <th className="p-4 text-right">Total Amount (₹)</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-dark-border">
+                      <tbody className="divide-y divide-workspace-border">
                         {summaryData.daily_trend?.map((row: any) => (
-                          <tr key={row.date} className="hover:bg-dark-card/50 transition-colors">
-                            <td className="p-4 font-mono font-bold text-gray-300">{row.date}</td>
-                            <td className="p-4 font-mono text-gray-400">{row.sales_count}</td>
-                            <td className="p-4 font-mono text-emerald-400">{formatCurrency(row.cash_amount)}</td>
-                            <td className="p-4 font-mono text-blue-400">{formatCurrency(row.upi_amount)}</td>
-                            <td className="p-4 font-mono text-amber-400">{formatCurrency(row.card_amount)}</td>
-                            <td className="p-4 text-right font-mono font-bold text-white text-sm">
+                          <tr key={row.date} className="hover:bg-workspace-hover/50 transition-colors">
+                            <td className="p-4 font-mono font-medium text-text-primary">{row.date}</td>
+                            <td className="p-4 font-mono text-text-secondary">{row.sales_count}</td>
+                            <td className="p-4 font-mono text-emerald-600">{formatCurrency(row.cash_amount)}</td>
+                            <td className="p-4 font-mono text-blue-600">{formatCurrency(row.upi_amount)}</td>
+                            <td className="p-4 font-mono text-amber-600">{formatCurrency(row.card_amount)}</td>
+                            <td className="p-4 text-right font-mono font-bold text-primary text-sm">
                               {formatCurrency(row.total_amount)}
                             </td>
                           </tr>
@@ -456,21 +467,21 @@ export default function ReportsPage() {
         {activeTab === 'customer' && (
           <div className="space-y-6">
             {/* Customer Search Bar */}
-            <div className="bg-dark-surface p-4 rounded-2xl border border-dark-border">
-              <label className="text-xs font-bold text-gray-300 block mb-2">Search Customer:</label>
+            <div className="bg-white p-4 rounded-2xl border border-workspace-border shadow-sm">
+              <label className="text-xs font-semibold text-text-primary block mb-2">Search Customer:</label>
               <div className="relative">
-                <Search className="w-4 h-4 text-gray-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <Search className="w-4 h-4 text-text-muted absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
                   placeholder="Search by customer name or phone..."
                   value={customerSearch}
                   onChange={(e) => setCustomerSearch(e.target.value)}
-                  className="w-full bg-dark-card border border-dark-border rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-brand-500"
+                  className="w-full bg-workspace-bg/50 border border-workspace-border rounded-xl pl-10 pr-4 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-text-primary focus:bg-white"
                 />
               </div>
 
               {customerSearchResults.length > 0 && (
-                <div className="mt-3 divide-y divide-dark-border border border-dark-border rounded-xl bg-dark-card overflow-hidden">
+                <div className="mt-3 divide-y divide-workspace-border border border-workspace-border rounded-xl bg-white overflow-hidden shadow-sm">
                   {customerSearchResults.map((cust) => (
                     <div
                       key={cust.id}
@@ -479,13 +490,13 @@ export default function ReportsPage() {
                         setCustomerSearchResults([]);
                         loadCustomerHistory(cust.id);
                       }}
-                      className="p-3 hover:bg-dark-surface/60 cursor-pointer flex items-center justify-between transition-colors"
+                      className="p-3 hover:bg-workspace-hover cursor-pointer flex items-center justify-between transition-colors"
                     >
                       <div>
-                        <p className="text-xs font-bold text-white">{cust.name}</p>
-                        <p className="text-[11px] text-gray-400 font-mono">{cust.phone}</p>
+                        <p className="text-xs font-semibold text-text-primary">{cust.name}</p>
+                        <p className="text-[11px] text-text-muted font-mono">{cust.phone}</p>
                       </div>
-                      <span className="text-[11px] font-mono text-brand-400 font-semibold">
+                      <span className="text-[11px] font-mono text-primary font-semibold">
                         {cust.total_visits} visits | {formatCurrency(cust.total_spend || 0)}
                       </span>
                     </div>
@@ -496,66 +507,66 @@ export default function ReportsPage() {
 
             {loadingCustomerHistory ? (
               <div className="h-64 flex flex-col items-center justify-center gap-3">
-                <Loader2 className="w-8 h-8 animate-spin text-brand-400" />
-                <span className="text-xs text-gray-500 font-mono">Loading purchase history...</span>
+                <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                <span className="text-xs text-text-muted font-mono">Loading purchase history...</span>
               </div>
             ) : customerHistory ? (
               <div className="space-y-6">
                 {/* Customer Profile Banner */}
-                <div className="bg-dark-surface border border-dark-border p-5 rounded-2xl flex flex-wrap items-center justify-between gap-4">
+                <div className="bg-white border border-workspace-border p-5 rounded-2xl shadow-sm flex flex-wrap items-center justify-between gap-4">
                   <div>
-                    <h3 className="text-lg font-black text-white">{customerHistory.customer_name}</h3>
-                    <p className="text-xs text-gray-400 font-mono">{customerHistory.customer_phone}</p>
+                    <h3 className="text-lg font-bold text-text-primary">{customerHistory.customer_name}</h3>
+                    <p className="text-xs text-text-muted font-mono">{customerHistory.customer_phone}</p>
                   </div>
                   <div className="flex gap-6 text-xs font-mono">
                     <div>
-                      <span className="text-gray-500 block uppercase text-[10px]">Visits</span>
-                      <span className="text-white font-bold text-sm">{customerHistory.total_visits}</span>
+                      <span className="text-text-muted block uppercase text-[10px]">Visits</span>
+                      <span className="text-text-primary font-bold text-sm">{customerHistory.total_visits}</span>
                     </div>
                     <div>
-                      <span className="text-gray-500 block uppercase text-[10px]">Lifetime Spend</span>
-                      <span className="text-brand-400 font-bold text-sm">{formatCurrency(customerHistory.total_spend)}</span>
+                      <span className="text-text-muted block uppercase text-[10px]">Lifetime Spend</span>
+                      <span className="text-primary font-bold text-sm">{formatCurrency(customerHistory.total_spend)}</span>
                     </div>
                     <div>
-                      <span className="text-gray-500 block uppercase text-[10px]">Loyalty Points</span>
-                      <span className="text-amber-400 font-bold text-sm">{customerHistory.loyalty_points}</span>
+                      <span className="text-text-muted block uppercase text-[10px]">Loyalty Points</span>
+                      <span className="text-amber-600 font-bold text-sm">{customerHistory.loyalty_points}</span>
                     </div>
                   </div>
                 </div>
 
                 {/* Sales Ledger */}
-                <div className="bg-dark-surface border border-dark-border rounded-2xl overflow-hidden shadow-xl">
-                  <div className="p-4 border-b border-dark-border">
-                    <h4 className="text-sm font-bold text-white flex items-center gap-2">
-                      <FileText className="w-4 h-4 text-brand-400" />
+                <div className="bg-white border border-workspace-border rounded-2xl overflow-hidden shadow-sm">
+                  <div className="p-4 border-b border-workspace-border">
+                    <h4 className="text-sm font-semibold text-text-primary flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-primary" />
                       <span>Past Transactions & Services Availed</span>
                     </h4>
                   </div>
                   {customerHistory.sales?.length === 0 ? (
-                    <div className="p-8 text-center text-xs text-gray-500">
+                    <div className="p-8 text-center text-xs text-text-muted">
                       No purchase records found for this customer.
                     </div>
                   ) : (
-                    <div className="divide-y divide-dark-border">
+                    <div className="divide-y divide-workspace-border">
                       {customerHistory.sales?.map((sale: any) => (
-                        <div key={sale.sale_id} className="p-4 space-y-2 hover:bg-dark-card/30 transition-colors">
+                        <div key={sale.sale_id} className="p-4 space-y-2 hover:bg-workspace-hover/40 transition-colors">
                           <div className="flex flex-wrap items-center justify-between text-xs">
                             <div className="flex items-center gap-2">
-                              <span className="font-mono font-bold text-brand-300">{sale.sale_number}</span>
+                              <span className="font-mono font-bold text-text-primary">{sale.sale_number}</span>
                               {sale.invoice_number && (
-                                <span className="text-gray-500 font-mono">({sale.invoice_number})</span>
+                                <span className="text-text-muted font-mono">({sale.invoice_number})</span>
                               )}
-                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase ${
                                 sale.status === 'COMPLETED'
-                                  ? 'bg-emerald-500/10 text-emerald-400'
-                                  : 'bg-rose-500/10 text-rose-400'
+                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                  : 'bg-rose-50 text-rose-700 border border-rose-200'
                               }`}>
                                 {sale.status}
                               </span>
                             </div>
                             <div className="flex items-center gap-4 font-mono">
-                              <span className="text-gray-400">{new Date(sale.created_at).toLocaleDateString()}</span>
-                              <span className="font-bold text-white text-sm">{formatCurrency(sale.total_amount)}</span>
+                              <span className="text-text-muted">{new Date(sale.created_at).toLocaleDateString()}</span>
+                              <span className="font-bold text-primary text-sm">{formatCurrency(sale.total_amount)}</span>
                             </div>
                           </div>
                           {/* Availed items list */}
@@ -563,7 +574,7 @@ export default function ReportsPage() {
                             {sale.items?.map((item: any, i: number) => (
                               <span
                                 key={i}
-                                className="px-2.5 py-1 rounded-lg bg-dark-card border border-dark-border text-[11px] text-gray-300 font-medium"
+                                className="px-2.5 py-1 rounded-lg bg-workspace-bg border border-workspace-border text-[11px] text-text-secondary font-medium"
                               >
                                 {item.service_name} {item.quantity > 1 ? `x${item.quantity}` : ''} ({formatCurrency(item.total_price)})
                               </span>
@@ -576,13 +587,13 @@ export default function ReportsPage() {
                 </div>
               </div>
             ) : (
-              <div className="p-16 text-center text-gray-500 text-xs">
+              <div className="p-16 text-center text-text-muted text-sm bg-white rounded-2xl border border-workspace-border">
                 Search and select a customer above to view their purchase history.
               </div>
             )}
           </div>
         )}
-      </div>
+      </main>
     </div>
   );
 }

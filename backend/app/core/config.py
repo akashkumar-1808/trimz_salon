@@ -23,6 +23,18 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 24 hours
 
+    # Storage
+    STORAGE_DIR: str = "storage"
+    BASE_URL: str = "http://127.0.0.1:8000"
+
+    # Meta WhatsApp Cloud API Configuration
+    META_WHATSAPP_PHONE_NUMBER_ID: str = ""
+    META_WHATSAPP_ACCESS_TOKEN: str = ""
+    META_WHATSAPP_BUSINESS_ACCOUNT_ID: str = ""
+    META_WHATSAPP_WEBHOOK_VERIFY_TOKEN: str = "trimz_webhook_verify_token_2026"
+    META_WHATSAPP_APP_SECRET: str = ""
+    META_WHATSAPP_API_VERSION: str = "v20.0"
+
     # CORS
     CORS_ORIGINS: Union[str, List[str]] = "http://localhost:3000,http://127.0.0.1:3000"
 

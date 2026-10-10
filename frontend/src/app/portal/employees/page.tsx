@@ -32,7 +32,6 @@ export default function EmployeesPage() {
       setEmployees(emps);
       setRoles(rls);
       if (rls.length > 0 && selectedRoleIds.length === 0) {
-        // default to receptionist or first role
         const rec = rls.find((r) => r.slug === 'receptionist') || rls[0];
         setSelectedRoleIds([rec.id]);
       }
@@ -95,54 +94,68 @@ export default function EmployeesPage() {
   });
 
   return (
-    <div className="flex-1 flex flex-col min-h-screen">
+    <div className="flex-1 flex flex-col min-h-screen bg-workspace-bg">
       <Topbar title="Staff & Access Control" />
 
-      <div className="p-6 space-y-6 max-w-7xl mx-auto w-full">
-        {/* Actions Bar */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-dark-surface p-4 rounded-2xl border border-dark-border">
-          <div className="relative flex-1 max-w-md">
-            <Search className="w-4 h-4 text-gray-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="Search team member by name or email..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full bg-dark-card border border-dark-border rounded-xl pl-10 pr-4 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-brand-500 transition-all"
-            />
+      <main className="p-6 md:p-8 space-y-6 max-w-7xl mx-auto w-full">
+        {/* Header Kicker */}
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+          <div>
+            <div className="text-[11px] font-bold uppercase tracking-widest text-text-muted">TRIMZ TEAM MANAGEMENT</div>
+            <h1 className="font-serif text-3xl font-bold text-text-primary tracking-tight mt-0.5">Staff & Access Control</h1>
+            <p className="text-sm text-text-secondary mt-1">
+              Manage salon staff members, assign operational roles, credentials, and access status.
+            </p>
           </div>
-
           <button
             onClick={() => setIsModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-400 hover:to-brand-500 text-dark-bg font-bold text-xs transition-all shadow-md shadow-brand-500/20"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary hover:bg-primary-hover text-white font-medium text-sm transition-all shadow-sm self-start sm:self-auto"
           >
             <Plus className="w-4 h-4" />
             <span>Add Team Member</span>
           </button>
         </div>
 
-        {/* Employees Table */}
-        <div className="bg-dark-surface border border-dark-border rounded-2xl overflow-hidden shadow-xl">
-          <div className="p-4 border-b border-dark-border flex items-center justify-between">
-            <h3 className="text-sm font-bold text-white flex items-center gap-2">
-              <UserCheck className="w-4 h-4 text-brand-400" />
+        {/* Actions Bar */}
+        <div className="bg-white p-4 rounded-2xl border border-workspace-border shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="relative flex-1 max-w-md">
+            <Search className="w-4 h-4 text-text-muted absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder="Search team member by name or email..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full bg-workspace-bg/50 border border-workspace-border rounded-xl pl-10 pr-4 py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-text-primary focus:bg-white transition-all"
+            />
+          </div>
+          <span className="text-xs text-text-secondary font-mono">
+            Total staff: {filteredEmployees.length}
+          </span>
+        </div>
+
+        {/* Employees Table Card */}
+        <div className="bg-white border border-workspace-border rounded-2xl overflow-hidden shadow-sm">
+          <div className="p-4 border-b border-workspace-border flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-text-primary flex items-center gap-2">
+              <UserCheck className="w-4 h-4 text-primary" />
               <span>Employees & Credentials ({filteredEmployees.length})</span>
             </h3>
           </div>
 
           {loading ? (
             <div className="p-16 flex flex-col items-center justify-center gap-2">
-              <Loader2 className="w-6 h-6 animate-spin text-brand-400" />
+              <Loader2 className="w-6 h-6 animate-spin text-primary" />
+              <span className="text-xs text-text-muted">Loading team roster...</span>
             </div>
           ) : filteredEmployees.length === 0 ? (
-            <div className="p-16 text-center text-gray-500 text-xs">
+            <div className="p-16 text-center text-text-muted text-sm">
               No staff members found matching query.
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs">
+              <table className="w-full text-left border-collapse text-sm">
                 <thead>
-                  <tr className="border-b border-dark-border bg-dark-card/40 text-gray-400 font-semibold uppercase text-[11px]">
+                  <tr className="border-b border-workspace-border bg-workspace-bg/40 text-text-muted font-medium uppercase text-[11px] tracking-wider">
                     <th className="p-4">Name & Email</th>
                     <th className="p-4">Phone</th>
                     <th className="p-4">Assigned Roles</th>
@@ -151,57 +164,57 @@ export default function EmployeesPage() {
                     <th className="p-4 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-dark-border">
+                <tbody className="divide-y divide-workspace-border">
                   {filteredEmployees.map((emp) => (
-                    <tr key={emp.id} className="hover:bg-dark-card/50 transition-colors">
+                    <tr key={emp.id} className="hover:bg-workspace-hover/50 transition-colors">
                       <td className="p-4">
-                        <div className="font-bold text-gray-100 flex items-center gap-2">
+                        <div className="font-semibold text-text-primary flex items-center gap-2">
                           <span>{emp.name}</span>
                           {emp.is_owner && (
-                            <span className="px-2 py-0.5 rounded-full bg-brand-500/20 border border-brand-500/40 text-brand-300 text-[10px] font-mono font-bold">
+                            <span className="px-2 py-0.5 rounded-full bg-workspace-bg border border-workspace-border text-primary text-[10px] font-mono font-bold">
                               Owner
                             </span>
                           )}
                         </div>
-                        <div className="text-gray-400 font-mono text-[11px]">{emp.email}</div>
+                        <div className="text-text-muted font-mono text-xs">{emp.email}</div>
                       </td>
-                      <td className="p-4 font-mono text-gray-300">{emp.phone || '-'}</td>
+                      <td className="p-4 font-mono text-text-secondary text-xs">{emp.phone || '-'}</td>
                       <td className="p-4">
                         <div className="flex flex-wrap gap-1">
                           {emp.roles && emp.roles.length > 0 ? (
                             emp.roles.map((r: string, idx: number) => (
                               <span
                                 key={idx}
-                                className="px-2 py-0.5 rounded-md bg-dark-card border border-dark-border text-gray-300 text-[10px] font-medium"
+                                className="px-2.5 py-0.5 rounded-md bg-workspace-bg border border-workspace-border text-text-secondary text-[11px] font-medium"
                               >
                                 {r}
                               </span>
                             ))
                           ) : (
-                            <span className="text-gray-500 italic text-[11px]">No role</span>
+                            <span className="text-text-muted italic text-xs">No role</span>
                           )}
                         </div>
                       </td>
                       <td className="p-4">
                         <span
-                          className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                          className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold uppercase tracking-wider ${
                             emp.status?.toUpperCase() === 'ACTIVE'
-                              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                              : 'bg-red-500/10 text-red-400 border border-red-500/20'
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                              : 'bg-rose-50 text-rose-700 border border-rose-200'
                           }`}
                         >
                           {emp.status}
                         </span>
                       </td>
-                      <td className="p-4 text-gray-400">{formatDate(emp.created_at)}</td>
+                      <td className="p-4 text-text-secondary text-xs">{formatDate(emp.created_at)}</td>
                       <td className="p-4 text-right">
                         {!emp.is_owner && (
                           <button
                             onClick={() => handleToggleStatus(emp)}
-                            className={`px-3 py-1 rounded-lg text-xs font-semibold border transition-all ${
+                            className={`px-3 py-1 rounded-xl text-xs font-medium border transition-all ${
                               emp.status?.toUpperCase() === 'ACTIVE'
-                                ? 'border-red-500/30 text-red-400 hover:bg-red-500/10'
-                                : 'border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10'
+                                ? 'bg-white border-rose-200 text-rose-700 hover:bg-rose-50'
+                                : 'bg-white border-emerald-200 text-emerald-700 hover:bg-emerald-50'
                             }`}
                           >
                             {emp.status?.toUpperCase() === 'ACTIVE' ? 'Disable Access' : 'Re-activate'}
@@ -215,72 +228,72 @@ export default function EmployeesPage() {
             </div>
           )}
         </div>
-      </div>
+      </main>
 
       {/* Add Employee Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-          <div className="bg-dark-surface border border-dark-border rounded-2xl w-full max-w-md p-6 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white border border-workspace-border rounded-2xl w-full max-w-md p-6 shadow-xl">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="font-bold text-base text-white">Add Staff Member</h3>
-              <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-white">
+              <h3 className="font-bold text-base text-text-primary">Add Staff Member</h3>
+              <button onClick={() => setIsModalOpen(false)} className="text-text-muted hover:text-text-primary">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleCreateEmployee} className="space-y-3 text-xs">
+            <form onSubmit={handleCreateEmployee} className="space-y-3.5 text-xs">
               <div>
-                <label className="block text-gray-400 mb-1">Full Name *</label>
+                <label className="block text-text-secondary font-medium mb-1">Full Name *</label>
                 <input
                   type="text"
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="e.g. Ramesh Kumar"
-                  className="w-full bg-dark-card border border-dark-border rounded-xl px-3 py-2 text-white"
+                  className="w-full bg-white border border-workspace-border rounded-xl px-3 py-2 text-text-primary text-sm focus:outline-none focus:border-text-primary"
                 />
               </div>
 
               <div>
-                <label className="block text-gray-400 mb-1">Work Email *</label>
+                <label className="block text-text-secondary font-medium mb-1">Work Email *</label>
                 <input
                   type="email"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="staff@trimzsalon.com"
-                  className="w-full bg-dark-card border border-dark-border rounded-xl px-3 py-2 text-white"
+                  className="w-full bg-white border border-workspace-border rounded-xl px-3 py-2 text-text-primary text-sm focus:outline-none focus:border-text-primary"
                 />
               </div>
 
               <div>
-                <label className="block text-gray-400 mb-1">Temporary Password *</label>
+                <label className="block text-text-secondary font-medium mb-1">Temporary Password *</label>
                 <input
                   type="password"
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Min 6 characters"
-                  className="w-full bg-dark-card border border-dark-border rounded-xl px-3 py-2 text-white"
+                  className="w-full bg-white border border-workspace-border rounded-xl px-3 py-2 text-text-primary text-sm focus:outline-none focus:border-text-primary"
                 />
               </div>
 
               <div>
-                <label className="block text-gray-400 mb-1">Phone Number</label>
+                <label className="block text-text-secondary font-medium mb-1">Phone Number</label>
                 <input
                   type="tel"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="10-digit mobile"
-                  className="w-full bg-dark-card border border-dark-border rounded-xl px-3 py-2 text-white font-mono"
+                  className="w-full bg-white border border-workspace-border rounded-xl px-3 py-2 text-text-primary font-mono text-sm focus:outline-none focus:border-text-primary"
                 />
               </div>
 
               <div>
-                <label className="block text-gray-400 mb-1">Assign Operational Role *</label>
-                <div className="space-y-1.5 max-h-36 overflow-y-auto p-2 bg-dark-card rounded-xl border border-dark-border">
+                <label className="block text-text-secondary font-medium mb-1">Assign Operational Role *</label>
+                <div className="space-y-1.5 max-h-36 overflow-y-auto p-2.5 bg-workspace-bg rounded-xl border border-workspace-border">
                   {roles.map((r) => (
-                    <label key={r.id} className="flex items-center gap-2 text-gray-300 cursor-pointer">
+                    <label key={r.id} className="flex items-center gap-2 text-text-primary cursor-pointer text-xs">
                       <input
                         type="checkbox"
                         checked={selectedRoleIds.includes(r.id)}
@@ -291,7 +304,7 @@ export default function EmployeesPage() {
                             setSelectedRoleIds(selectedRoleIds.filter((id) => id !== r.id));
                           }
                         }}
-                        className="rounded bg-dark-bg border-dark-border text-brand-500"
+                        className="rounded border-workspace-border text-primary accent-primary"
                       />
                       <span>{r.name}</span>
                     </label>
@@ -303,14 +316,14 @@ export default function EmployeesPage() {
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="flex-1 py-2.5 rounded-xl bg-dark-card text-gray-300 font-semibold"
+                  className="flex-1 py-2.5 rounded-xl bg-white border border-workspace-border hover:bg-workspace-hover text-text-primary font-medium text-sm"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={saving}
-                  className="flex-1 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 text-dark-bg font-bold"
+                  className="flex-1 py-2.5 rounded-xl bg-primary hover:bg-primary-hover text-white font-medium text-sm shadow-sm"
                 >
                   {saving ? 'Creating...' : 'Create Account'}
                 </button>

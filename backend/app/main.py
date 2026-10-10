@@ -34,8 +34,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from app.api.v1.webhooks import router as webhooks_router
+
 # API Routers
 app.include_router(api_router, prefix="/api")
+app.include_router(webhooks_router, prefix="/api")
 
 @app.get("/health", tags=["Health"])
 @app.get("/api/health", tags=["Health"])

@@ -19,10 +19,14 @@ class Invoice(Base):
     total_amount = Column(Numeric(12, 2), nullable=False)
     currency = Column(String(5), nullable=False, default="INR")
     pdf_url = Column(Text, nullable=True)
+    image_url = Column(Text, nullable=True)
+    render_status = Column(String(20), nullable=False, default="PENDING") # PENDING, GENERATED, FAILED
+    rendered_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True)
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     sale = relationship("Sale", back_populates="invoice", lazy="selectin")
+    whatsapp_messages = relationship("WhatsAppMessage", back_populates="invoice", cascade="all, delete-orphan", lazy="selectin")
 
     @property
     def customer_name(self):
