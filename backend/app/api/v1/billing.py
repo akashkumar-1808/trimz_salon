@@ -9,6 +9,7 @@ from app.core.database import get_db
 from app.models.business import Business
 from app.models.customer import Customer
 from app.models.sale import Sale, SaleItem, Payment
+from app.models.service import Service
 from app.models.invoice import Invoice
 from app.models.auth import User
 from app.models.audit import AuditLog
@@ -124,6 +125,26 @@ async def checkout(
     items_to_create = []
 
     for item_in in data.items:
+        if item_in.service_id:
+            svc_res = await db.execute(
+                select(Service).where(
+                    Service.id == item_in.service_id,
+                    Service.business_id == current_user.business_id
+                )
+            )
+            svc = svc_res.scalar_one_or_none()
+            if not svc:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Service '{item_in.name}' does not exist."
+                )
+            if svc.is_deleted or not svc.is_active:
+                status_desc = "removed" if svc.is_deleted else "paused"
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Service '{svc.name}' is currently {status_desc} and cannot be added to new bills."
+                )
+
         line_sub = Decimal(str(item_in.unit_price)) * Decimal(str(item_in.quantity))
         line_disc = Decimal(str(item_in.discount_amount))
         line_total = max(Decimal("0.00"), line_sub - line_disc)

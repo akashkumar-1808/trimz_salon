@@ -45,13 +45,16 @@ def get_date_bounds(period: str, now: datetime) -> tuple[datetime, datetime]:
         return datetime(2020, 1, 1, tzinfo=timezone.utc), today_end
 
 @router.get("/metrics", response_model=DashboardResponse)
+@router.get("/overview", response_model=DashboardResponse)
 async def get_dashboard_metrics(
     period: str = Query("today", description="today, yesterday, this_week, this_month, last_month, this_year, lifetime"),
+    time_range: Optional[str] = Query(None, description="Alias for period"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_permission("dashboard.view"))
 ):
+    selected_period = time_range or period
     now = datetime.now(timezone.utc)
-    start_date, end_date = get_date_bounds(period, now)
+    start_date, end_date = get_date_bounds(selected_period, now)
 
     biz_id = current_user.business_id
 
@@ -166,7 +169,13 @@ async def get_dashboard_metrics(
         .limit(5)
     )
     top_services = [
-        TopServiceItem(name=r.name, units_sold=r.units_sold or 0, total_revenue=r.revenue)
+        TopServiceItem(
+            name=r.name,
+            units_sold=r.units_sold or 0,
+            total_revenue=r.revenue,
+            count=r.units_sold or 0,
+            revenue=r.revenue
+        )
         for r in top_srv_q.all()
     ]
 
@@ -184,6 +193,9 @@ async def get_dashboard_metrics(
     )
     recent_sales = [SaleOut.model_validate(s) for s in recent_q.scalars().all()]
 
+    pm_breakdown = {pm["method"]: pm["amount"] for pm in pay_methods}
+    upi_breakdown = {u.provider: u.amount for u in upi_providers}
+
     return DashboardResponse(
         period=period,
         start_date=start_date.strftime("%Y-%m-%d"),
@@ -199,5 +211,13 @@ async def get_dashboard_metrics(
         payment_methods=payment_shares,
         upi_providers=upi_providers,
         top_services=top_services,
-        recent_sales=recent_sales
+        recent_sales=recent_sales,
+        total_revenue=revenue,
+        transaction_count=tx_count,
+        average_bill_value=abv,
+        unique_customers=unique_custs,
+        new_customers=new_customers,
+        repeat_customers=returning_customers,
+        payment_methods_breakdown=pm_breakdown,
+        upi_providers_breakdown=upi_breakdown
     )

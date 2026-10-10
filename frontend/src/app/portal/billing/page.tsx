@@ -28,9 +28,11 @@ export default function BillingPosPage() {
   // Service selection state
   const [categories, setCategories] = useState<ServiceCategory[]>([]);
   const [services, setServices] = useState<Service[]>([]);
+  const [selectedDepartment, setSelectedDepartment] = useState<'all' | 'Women' | 'Men'>('Women');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedGender, setSelectedGender] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [viewMode, setViewMode] = useState<'row' | 'grid'>('row');
   const [loadingServices, setLoadingServices] = useState(true);
 
   // Cart & checkout state
@@ -94,13 +96,35 @@ export default function BillingPosPage() {
     return () => clearTimeout(timer);
   }, [customerSearch, selectedCustomer]);
 
+  // Categories belonging to current department
+  const departmentCategories = categories.filter((c) => {
+    if (selectedDepartment === 'all') return true;
+    return c.department === selectedDepartment || c.department === 'Unisex' || !c.department;
+  });
+
   // Filtered services
   const filteredServices = services.filter((svc) => {
+    // Department filtering
+    if (selectedDepartment === 'Women') {
+      if (svc.audience === 'Male') return false;
+      const cat = categories.find((c) => c.id === svc.category_id);
+      if (cat && cat.department && cat.department === 'Men') return false;
+    } else if (selectedDepartment === 'Men') {
+      if (svc.audience === 'Female') return false;
+      const cat = categories.find((c) => c.id === svc.category_id);
+      if (cat && cat.department && cat.department === 'Women') return false;
+    }
+
     if (selectedCategory !== 'all' && svc.category_id !== selectedCategory) return false;
     if (selectedGender !== 'all' && svc.target_gender !== 'all' && svc.target_gender !== selectedGender) return false;
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      return svc.name.toLowerCase().includes(q) || (svc.category_name && svc.category_name.toLowerCase().includes(q));
+      return (
+        svc.name.toLowerCase().includes(q) ||
+        (svc.category_name && svc.category_name.toLowerCase().includes(q)) ||
+        (svc.variant_name && svc.variant_name.toLowerCase().includes(q)) ||
+        (svc.combo_items && svc.combo_items.toLowerCase().includes(q))
+      );
     }
     return true;
   });
@@ -193,7 +217,9 @@ export default function BillingPosPage() {
         ],
         items: cart.map((item) => ({
           service_id: item.service.id,
-          name: item.service.name,
+          name: item.service.variant_name
+            ? `${item.service.name} (${item.service.variant_name})`
+            : item.service.name,
           unit_price: item.unit_price,
           quantity: item.quantity,
           discount_amount: item.discount_amount || 0,
@@ -247,35 +273,97 @@ export default function BillingPosPage() {
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
         {/* Left Pane: Service Catalog Selector */}
         <div className="flex-1 flex flex-col border-r border-dark-border bg-dark-bg/60 p-5 space-y-4 overflow-y-auto">
-          {/* Search & Gender filter bar */}
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="relative flex-1">
-              <Search className="w-4 h-4 text-gray-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                placeholder="Search services or haircuts..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-dark-surface border border-dark-border rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-brand-500 transition-all"
-              />
+          {/* Top-Level Department Choice & Mode Selector */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-dark-surface p-2.5 rounded-2xl border border-dark-border">
+            <div className="flex items-center gap-1.5 p-1 bg-dark-bg rounded-xl border border-dark-border">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedDepartment('Women');
+                  setSelectedCategory('all');
+                }}
+                className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${
+                  selectedDepartment === 'Women'
+                    ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40 shadow-sm'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                <Sparkles className="w-3.5 h-3.5 text-rose-400" />
+                <span>Women&apos;s Lounge</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedDepartment('Men');
+                  setSelectedCategory('all');
+                }}
+                className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${
+                  selectedDepartment === 'Men'
+                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                <Scissors className="w-3.5 h-3.5 text-amber-400" />
+                <span>Gentlemen&apos;s Lounge</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedDepartment('all');
+                  setSelectedCategory('all');
+                }}
+                className={`px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
+                  selectedDepartment === 'all'
+                    ? 'bg-brand-500/20 text-brand-300 border border-brand-500/40 shadow-sm'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                All
+              </button>
             </div>
 
-            {/* Gender Audience Pills */}
-            <div className="flex bg-dark-surface p-1 rounded-xl border border-dark-border">
-              {['all', 'men', 'women', 'kids'].map((g) => (
+            {/* Layout Toggle (Row vs Grid) */}
+            <div className="flex items-center gap-1 self-end sm:self-center">
+              <span className="text-[11px] text-gray-500 font-medium mr-1 hidden sm:inline">Layout:</span>
+              <div className="flex bg-dark-bg p-1 rounded-xl border border-dark-border">
                 <button
-                  key={g}
-                  onClick={() => setSelectedGender(g)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all ${
-                    selectedGender === g
-                      ? 'bg-brand-500 text-dark-bg shadow-sm'
-                      : 'text-gray-400 hover:text-white'
+                  type="button"
+                  onClick={() => setViewMode('row')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                    viewMode === 'row'
+                      ? 'bg-dark-card text-brand-300 border border-dark-border'
+                      : 'text-gray-500 hover:text-gray-300'
                   }`}
+                  title="Easy-to-scan Row List"
                 >
-                  {g}
+                  List
                 </button>
-              ))}
+                <button
+                  type="button"
+                  onClick={() => setViewMode('grid')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                    viewMode === 'grid'
+                      ? 'bg-dark-card text-brand-300 border border-dark-border'
+                      : 'text-gray-500 hover:text-gray-300'
+                  }`}
+                  title="Card Grid"
+                >
+                  Cards
+                </button>
+              </div>
             </div>
+          </div>
+
+          {/* Search Bar */}
+          <div className="relative">
+            <Search className="w-4 h-4 text-gray-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder={`Search ${selectedDepartment === 'Women' ? "women's" : selectedDepartment === 'Men' ? "men's" : ''} services, hair cuts, combos, facials...`}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-dark-surface border border-dark-border rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-brand-500 transition-all"
+            />
           </div>
 
           {/* Category Tabs */}
@@ -284,28 +372,31 @@ export default function BillingPosPage() {
               onClick={() => setSelectedCategory('all')}
               className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
                 selectedCategory === 'all'
-                  ? 'bg-brand-500/20 text-brand-300 border border-brand-500/40'
+                  ? 'bg-brand-500/20 text-brand-300 border border-brand-500/40 shadow-sm'
                   : 'bg-dark-surface text-gray-400 border border-dark-border hover:text-white'
               }`}
             >
-              All Services ({services.length})
+              All Categories ({filteredServices.length})
             </button>
-            {categories.map((c) => (
-              <button
-                key={c.id}
-                onClick={() => setSelectedCategory(c.id)}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
-                  selectedCategory === c.id
-                    ? 'bg-brand-500/20 text-brand-300 border border-brand-500/40'
-                    : 'bg-dark-surface text-gray-400 border border-dark-border hover:text-white'
-                }`}
-              >
-                {c.name}
-              </button>
-            ))}
+            {departmentCategories.map((c) => {
+              const catCount = services.filter((s) => s.category_id === c.id).length;
+              return (
+                <button
+                  key={c.id}
+                  onClick={() => setSelectedCategory(c.id)}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
+                    selectedCategory === c.id
+                      ? 'bg-brand-500/20 text-brand-300 border border-brand-500/40 shadow-sm'
+                      : 'bg-dark-surface text-gray-400 border border-dark-border hover:text-white'
+                  }`}
+                >
+                  {c.name} {catCount > 0 ? `(${catCount})` : ''}
+                </button>
+              );
+            })}
           </div>
 
-          {/* Service Cards Grid */}
+          {/* Service Cards / Rows */}
           {loadingServices ? (
             <div className="h-64 flex items-center justify-center">
               <Loader2 className="w-8 h-8 animate-spin text-brand-400" />
@@ -314,7 +405,76 @@ export default function BillingPosPage() {
             <div className="p-12 text-center text-gray-500 text-xs">
               No services found matching the criteria.
             </div>
+          ) : viewMode === 'row' ? (
+            /* Row-based layout (Easy to scan) */
+            <div className="space-y-2">
+              {filteredServices.map((svc) => (
+                <div
+                  key={svc.id}
+                  onClick={() => addToCart(svc)}
+                  className="p-3.5 rounded-xl bg-dark-surface border border-dark-border hover:border-brand-500/60 hover:bg-dark-card/70 transition-all cursor-pointer group flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                >
+                  {/* Left: Service details */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h4 className="font-semibold text-sm text-gray-100 group-hover:text-brand-300 transition-colors">
+                        {svc.name}
+                      </h4>
+                      {svc.variant_name && (
+                        <span className="px-2 py-0.5 rounded-md bg-brand-500/10 border border-brand-500/30 text-brand-300 text-[10px] font-semibold">
+                          {svc.variant_name}
+                        </span>
+                      )}
+                      {svc.is_variable_price && (
+                        <span className="px-2 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[10px] font-medium">
+                          Onwards
+                        </span>
+                      )}
+                      {svc.category_name && (
+                        <span className="text-[10px] text-gray-500 font-medium">
+                          • {svc.category_name}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Combo components if applicable */}
+                    {svc.combo_items && (
+                      <p className="text-[11px] text-gray-400 mt-1 flex items-center gap-1">
+                        <span className="text-brand-400 font-semibold">Includes:</span>
+                        <span>{svc.combo_items}</span>
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Middle: Duration */}
+                  <div className="flex items-center gap-1 text-xs text-gray-400 shrink-0">
+                    <Clock className="w-3.5 h-3.5 text-gray-500" />
+                    <span>{svc.duration_minutes} mins</span>
+                  </div>
+
+                  {/* Right: Price & Add */}
+                  <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-dark-border">
+                    <div className="text-right">
+                      <span className="text-sm font-bold font-mono text-white group-hover:text-brand-200">
+                        {formatCurrency(svc.price)}
+                      </span>
+                      {svc.is_variable_price && (
+                        <span className="text-[10px] text-gray-500 block font-normal">+ onwards</span>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      className="px-3 py-1.5 rounded-lg bg-brand-500/10 text-brand-400 border border-brand-500/30 text-xs font-semibold group-hover:bg-brand-500 group-hover:text-dark-bg transition-all flex items-center gap-1 shadow-sm"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Add</span>
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
           ) : (
+            /* Grid cards layout */
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
               {filteredServices.map((svc) => (
                 <div
@@ -327,13 +487,25 @@ export default function BillingPosPage() {
                       <h4 className="font-semibold text-sm text-gray-100 group-hover:text-brand-300 transition-colors">
                         {svc.name}
                       </h4>
-                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-dark-bg border border-dark-border text-gray-400 uppercase">
-                        {svc.target_gender}
-                      </span>
+                      {svc.variant_name && (
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-brand-500/10 border border-brand-500/30 text-brand-300">
+                          {svc.variant_name}
+                        </span>
+                      )}
                     </div>
-                    <div className="flex items-center gap-1.5 text-xs text-gray-400 mt-1">
+
+                    {svc.combo_items && (
+                      <p className="text-[10px] text-gray-400 mt-1 line-clamp-2">
+                        {svc.combo_items}
+                      </p>
+                    )}
+
+                    <div className="flex items-center gap-1.5 text-xs text-gray-400 mt-2">
                       <Clock className="w-3.5 h-3.5 text-gray-500" />
                       <span>{svc.duration_minutes} mins</span>
+                      {svc.is_variable_price && (
+                        <span className="text-[10px] text-amber-400 ml-auto font-medium">onwards</span>
+                      )}
                     </div>
                   </div>
 
@@ -456,7 +628,14 @@ export default function BillingPosPage() {
                   className="p-3 rounded-xl bg-dark-card border border-dark-border flex items-center justify-between gap-3"
                 >
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs font-semibold text-gray-200 truncate">{item.service.name}</p>
+                    <p className="text-xs font-semibold text-gray-200 truncate">
+                      {item.service.name}
+                      {item.service.variant_name && (
+                        <span className="text-[10px] text-brand-300 ml-1 font-normal">
+                          ({item.service.variant_name})
+                        </span>
+                      )}
+                    </p>
                     <p className="text-[11px] font-mono text-brand-300">
                       {formatCurrency(item.unit_price)} each
                     </p>

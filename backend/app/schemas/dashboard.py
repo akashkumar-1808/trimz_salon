@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Dict
 from decimal import Decimal
 from pydantic import BaseModel
 from app.schemas.billing import SaleOut
@@ -27,6 +27,8 @@ class TopServiceItem(BaseModel):
     name: str
     units_sold: int
     total_revenue: Decimal
+    count: int = 0
+    revenue: Decimal = Decimal("0.00")
 
 class DashboardResponse(BaseModel):
     period: str # today, yesterday, this_week, this_month, last_month, this_year, lifetime, custom
@@ -37,3 +39,13 @@ class DashboardResponse(BaseModel):
     upi_providers: List[UPIProviderShare]
     top_services: List[TopServiceItem]
     recent_sales: List[SaleOut] = []
+    
+    # Direct top-level metrics matching frontend expectations
+    total_revenue: Decimal = Decimal("0.00")
+    transaction_count: int = 0
+    average_bill_value: Decimal = Decimal("0.00")
+    unique_customers: int = 0
+    new_customers: int = 0
+    repeat_customers: int = 0
+    payment_methods_breakdown: Dict[str, Decimal] = {}
+    upi_providers_breakdown: Dict[str, Decimal] = {}
