@@ -89,17 +89,24 @@ class ApiClient {
     });
   }
 
+  async registerStaff(payload: { name: string; email: string; password: string; phone?: string; business_id?: string }) {
+    return this.request<any>('/auth/register-staff', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
   async getMe() {
     return this.request<any>('/auth/me');
   }
 
   // Employees
   async getEmployees() {
-    return this.request<any[]>('/employees/');
+    return this.request<any[]>('/employees');
   }
 
   async createEmployee(payload: any) {
-    return this.request<any>('/employees/', {
+    return this.request<any>('/employees', {
       method: 'POST',
       body: JSON.stringify(payload),
     });
@@ -112,9 +119,15 @@ class ApiClient {
     });
   }
 
+  async activateEmployee(id: string) {
+    return this.request<any>(`/employees/${id}/activate`, {
+      method: 'POST',
+    });
+  }
+
   // Roles & Permissions
   async getRoles() {
-    return this.request<any[]>('/roles/');
+    return this.request<any[]>('/roles');
   }
 
   async getPermissions() {
@@ -122,7 +135,7 @@ class ApiClient {
   }
 
   async createRole(payload: any) {
-    return this.request<any>('/roles/', {
+    return this.request<any>('/roles', {
       method: 'POST',
       body: JSON.stringify(payload),
     });

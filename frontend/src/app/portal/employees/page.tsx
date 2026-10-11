@@ -1,26 +1,120 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Topbar from '@/components/Topbar';
 import { api } from '@/lib/api';
 import { formatDate } from '@/lib/utils';
 import { Role } from '@/lib/types';
-import { UserCheck, Plus, Search, Shield, X, Loader2, CheckCircle2, UserX } from 'lucide-react';
+import {
+  UserCheck,
+  Plus,
+  Search,
+  Shield,
+  X,
+  Loader2,
+  CheckCircle2,
+  UserX,
+  Clock,
+  KeyRound,
+  Sliders,
+  Check,
+  AlertTriangle,
+  RotateCcw,
+} from 'lucide-react';
+
+interface FeatureDef {
+  id: string;
+  name: string;
+  description: string;
+  requiredPermissions: string[];
+}
+
+const OWNER_FEATURES: FeatureDef[] = [
+  {
+    id: 'dashboard',
+    name: 'Dashboard Overview',
+    description: 'View salon KPI metrics, revenue charts, and operational summary',
+    requiredPermissions: ['dashboard.view'],
+  },
+  {
+    id: 'billing',
+    name: 'Billing & POS Checkout',
+    description: 'Create new tickets, apply percentage discounts, and complete checkout',
+    requiredPermissions: ['billing.create', 'billing.edit', 'billing.cancel'],
+  },
+  {
+    id: 'customers',
+    name: 'Customer Directory',
+    description: 'Access customer profiles, appointment history, and contact details',
+    requiredPermissions: ['customers.view', 'customers.create', 'customers.edit', 'customers.delete'],
+  },
+  {
+    id: 'services',
+    name: 'Services & Menu Catalog',
+    description: 'View and manage salon services, categories, pricing, and durations',
+    requiredPermissions: ['services.view', 'services.create', 'services.edit', 'services.delete'],
+  },
+  {
+    id: 'sales',
+    name: 'Sales & Transactions',
+    description: 'View completed billing orders, receipt logs, and transaction records',
+    requiredPermissions: ['billing.view'],
+  },
+  {
+    id: 'invoices',
+    name: 'Digital Invoices',
+    description: 'Generate, preview, and share WhatsApp public digital invoices',
+    requiredPermissions: ['invoices.view', 'invoices.manage'],
+  },
+  {
+    id: 'reports',
+    name: 'Reports & Analytics',
+    description: 'Access revenue reports, staff sales analytics, and business insights',
+    requiredPermissions: ['reports.view', 'reports.export'],
+  },
+  {
+    id: 'employees',
+    name: 'Staff Management',
+    description: 'View team members, approve pending registrations, and manage accounts',
+    requiredPermissions: ['employees.view', 'employees.create', 'employees.edit', 'employees.delete'],
+  },
+  {
+    id: 'roles',
+    name: 'Roles & Permissions',
+    description: 'Configure operational role templates and authorization schemes',
+    requiredPermissions: ['roles.view', 'roles.manage'],
+  },
+  {
+    id: 'settings',
+    name: 'Business Settings',
+    description: 'Configure salon profile, receipt branding, currency, and tax parameters',
+    requiredPermissions: ['settings.view', 'settings.edit'],
+  },
+];
 
 export default function EmployeesPage() {
   const [employees, setEmployees] = useState<any[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'PENDING' | 'INACTIVE'>('ALL');
 
   // Add Employee Modal
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [phone, setPhone] = useState('');
   const [selectedRoleIds, setSelectedRoleIds] = useState<string[]>([]);
-  const [saving, setSaving] = useState(false);
+  const [savingAdd, setSavingAdd] = useState(false);
+
+  // Edit / Permissions Modal
+  const [editEmp, setEditEmp] = useState<any | null>(null);
+  const [editPermissions, setEditPermissions] = useState<string[]>([]);
+  const [editName, setEditName] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [editStatus, setEditStatus] = useState<string>('ACTIVE');
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const loadData = async () => {
     setLoading(true);
@@ -49,7 +143,7 @@ export default function EmployeesPage() {
   const handleCreateEmployee = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !email || !password) return;
-    setSaving(true);
+    setSavingAdd(true);
     try {
       await api.createEmployee({
         name,
@@ -57,17 +151,31 @@ export default function EmployeesPage() {
         password,
         phone: phone || undefined,
         role_ids: selectedRoleIds,
+        status: 'ACTIVE',
       });
-      setIsModalOpen(false);
+      setIsAddModalOpen(false);
       setName('');
       setEmail('');
       setPassword('');
       setPhone('');
-      loadData();
+      await loadData();
     } catch (err: any) {
       alert(`Error creating employee: ${err.message}`);
     } finally {
-      setSaving(false);
+      setSavingAdd(false);
+    }
+  };
+
+  const handleActivate = async (emp: any) => {
+    try {
+      await api.activateEmployee(emp.id);
+      await loadData();
+      if (editEmp && editEmp.id === emp.id) {
+        setEditEmp({ ...editEmp, status: 'ACTIVE' });
+        setEditStatus('ACTIVE');
+      }
+    } catch (err: any) {
+      alert(`Failed to activate staff member: ${err.message}`);
     }
   };
 
@@ -79,23 +187,105 @@ export default function EmployeesPage() {
 
     try {
       await api.updateEmployee(emp.id, { status: newStatus });
-      loadData();
+      await loadData();
     } catch (err: any) {
       alert(`Status update failed: ${err.message}`);
     }
   };
 
+  const openEditModal = (emp: any) => {
+    setEditEmp(emp);
+    setEditName(emp.name || '');
+    setEditPhone(emp.phone || '');
+    setEditStatus(emp.status || 'ACTIVE');
+    setEditPermissions(emp.permissions || []);
+  };
+
+  const isFeatureEnabled = (feat: FeatureDef): boolean => {
+    if (editEmp?.is_owner) return true;
+    return feat.requiredPermissions.every((p) => editPermissions.includes(p));
+  };
+
+  const toggleFeature = (feat: FeatureDef) => {
+    if (editEmp?.is_owner) return;
+    const currentlyOn = isFeatureEnabled(feat);
+    let updated: string[];
+    if (currentlyOn) {
+      // Remove permissions of this feature
+      updated = editPermissions.filter((p) => !feat.requiredPermissions.includes(p));
+    } else {
+      // Add all required permissions
+      const newPerms = new Set([...editPermissions, ...feat.requiredPermissions]);
+      updated = Array.from(newPerms);
+    }
+    setEditPermissions(updated);
+  };
+
+  const handleSavePermissions = async () => {
+    if (!editEmp) return;
+    setSavingEdit(true);
+    try {
+      await api.updateEmployee(editEmp.id, {
+        name: editName,
+        phone: editPhone || undefined,
+        status: editStatus,
+        permissions: editPermissions,
+        has_custom_permissions: true,
+      });
+      setEditEmp(null);
+      await loadData();
+    } catch (err: any) {
+      alert(`Failed to save permissions: ${err.message}`);
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const handleResetToRoleDefaults = async () => {
+    if (!editEmp) return;
+    if (!confirm(`Reset ${editEmp.name}'s permissions to inherit default role permissions?`)) return;
+    setSavingEdit(true);
+    try {
+      await api.updateEmployee(editEmp.id, {
+        has_custom_permissions: false,
+      });
+      setEditEmp(null);
+      await loadData();
+    } catch (err: any) {
+      alert(`Failed to reset permissions: ${err.message}`);
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  // Metrics
+  const activeCount = useMemo(() => employees.filter((e) => e.status?.toUpperCase() === 'ACTIVE').length, [employees]);
+  const pendingCount = useMemo(() => employees.filter((e) => e.status?.toUpperCase() === 'PENDING').length, [employees]);
+  const inactiveCount = useMemo(() => employees.filter((e) => e.status?.toUpperCase() === 'INACTIVE').length, [employees]);
+
   const filteredEmployees = employees.filter((e) => {
+    const matchesStatus =
+      statusFilter === 'ALL' ||
+      (statusFilter === 'ACTIVE' && e.status?.toUpperCase() === 'ACTIVE') ||
+      (statusFilter === 'PENDING' && e.status?.toUpperCase() === 'PENDING') ||
+      (statusFilter === 'INACTIVE' && e.status?.toUpperCase() === 'INACTIVE');
+
+    if (!matchesStatus) return false;
+
     if (search.trim()) {
       const q = search.toLowerCase();
-      return e.name.toLowerCase().includes(q) || e.email.toLowerCase().includes(q);
+      return (
+        e.name?.toLowerCase().includes(q) ||
+        e.email?.toLowerCase().includes(q) ||
+        (e.phone && e.phone.toLowerCase().includes(q))
+      );
     }
     return true;
   });
 
   return (
     <div className="flex-1 flex flex-col min-h-screen bg-workspace-bg">
-      <Topbar title="Staff & Access Control" />
+      <Topbar title="Staff Management & Feature Access" />
 
       <main className="p-6 md:p-8 space-y-6 max-w-7xl mx-auto w-full">
         {/* Header Kicker */}
@@ -104,33 +294,91 @@ export default function EmployeesPage() {
             <div className="text-[11px] font-bold uppercase tracking-widest text-text-muted">TRIMZ TEAM MANAGEMENT</div>
             <h1 className="font-serif text-3xl font-bold text-text-primary tracking-tight mt-0.5">Staff & Access Control</h1>
             <p className="text-sm text-text-secondary mt-1">
-              Manage salon staff members, assign operational roles, credentials, and access status.
+              Owner-controlled team roster, pending registration approvals, and granular feature toggles.
             </p>
           </div>
           <button
-            onClick={() => setIsModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary hover:bg-primary-hover text-white font-medium text-sm transition-all shadow-sm self-start sm:self-auto"
+            onClick={() => setIsAddModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary hover:bg-primary-hover text-white font-medium text-sm transition-all shadow-sm self-start sm:self-auto"
           >
             <Plus className="w-4 h-4" />
-            <span>Add Team Member</span>
+            <span>Add Staff Member</span>
           </button>
         </div>
 
-        {/* Actions Bar */}
-        <div className="bg-white p-4 rounded-2xl border border-workspace-border shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        {/* Status Metrics Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="bg-white border border-workspace-border rounded-2xl p-4 shadow-xs">
+            <span className="text-[11px] uppercase font-bold text-text-muted tracking-wider">Total Staff</span>
+            <div className="text-2xl font-bold text-text-primary mt-1">{employees.length}</div>
+            <span className="text-xs text-text-secondary mt-0.5 block">Registered accounts</span>
+          </div>
+
+          <div className="bg-white border border-workspace-border rounded-2xl p-4 shadow-xs">
+            <span className="text-[11px] uppercase font-bold text-emerald-600 tracking-wider">Active</span>
+            <div className="text-2xl font-bold text-emerald-700 mt-1">{activeCount}</div>
+            <span className="text-xs text-text-secondary mt-0.5 block">Operational accounts</span>
+          </div>
+
+          <div
+            onClick={() => setStatusFilter('PENDING')}
+            className={`border rounded-2xl p-4 shadow-xs cursor-pointer transition-all ${
+              pendingCount > 0
+                ? 'bg-amber-50/60 border-amber-200 hover:bg-amber-50'
+                : 'bg-white border-workspace-border'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] uppercase font-bold text-amber-700 tracking-wider">Pending Approval</span>
+              {pendingCount > 0 && <Clock className="w-4 h-4 text-amber-600 animate-pulse" />}
+            </div>
+            <div className="text-2xl font-bold text-amber-800 mt-1">{pendingCount}</div>
+            <span className="text-xs text-amber-700/80 mt-0.5 block">Awaiting owner review</span>
+          </div>
+
+          <div className="bg-white border border-workspace-border rounded-2xl p-4 shadow-xs">
+            <span className="text-[11px] uppercase font-bold text-rose-600 tracking-wider">Deactivated</span>
+            <div className="text-2xl font-bold text-rose-700 mt-1">{inactiveCount}</div>
+            <span className="text-xs text-text-secondary mt-0.5 block">Disabled logins</span>
+          </div>
+        </div>
+
+        {/* Actions & Filters Bar */}
+        <div className="bg-white p-4 rounded-2xl border border-workspace-border shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+          {/* Search */}
           <div className="relative flex-1 max-w-md">
             <Search className="w-4 h-4 text-text-muted absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              placeholder="Search team member by name or email..."
+              placeholder="Search staff by name, email, or phone..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full bg-workspace-bg/50 border border-workspace-border rounded-xl pl-10 pr-4 py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-text-primary focus:bg-white transition-all"
             />
           </div>
-          <span className="text-xs text-text-secondary font-mono">
-            Total staff: {filteredEmployees.length}
-          </span>
+
+          {/* Filter Pills */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0">
+            {(['ALL', 'ACTIVE', 'PENDING', 'INACTIVE'] as const).map((st) => (
+              <button
+                key={st}
+                onClick={() => setStatusFilter(st)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
+                  statusFilter === st
+                    ? 'bg-primary text-white shadow-xs'
+                    : 'bg-workspace-bg text-text-secondary hover:text-text-primary hover:bg-workspace-hover'
+                }`}
+              >
+                {st === 'ALL'
+                  ? `All (${employees.length})`
+                  : st === 'PENDING'
+                  ? `Pending (${pendingCount})`
+                  : st === 'ACTIVE'
+                  ? `Active (${activeCount})`
+                  : `Inactive (${inactiveCount})`}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Employees Table Card */}
@@ -138,7 +386,7 @@ export default function EmployeesPage() {
           <div className="p-4 border-b border-workspace-border flex items-center justify-between">
             <h3 className="text-sm font-semibold text-text-primary flex items-center gap-2">
               <UserCheck className="w-4 h-4 text-primary" />
-              <span>Employees & Credentials ({filteredEmployees.length})</span>
+              <span>Staff Members ({filteredEmployees.length})</span>
             </h3>
           </div>
 
@@ -149,80 +397,134 @@ export default function EmployeesPage() {
             </div>
           ) : filteredEmployees.length === 0 ? (
             <div className="p-16 text-center text-text-muted text-sm">
-              No staff members found matching query.
+              No staff members found matching criteria.
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-sm">
                 <thead>
                   <tr className="border-b border-workspace-border bg-workspace-bg/40 text-text-muted font-medium uppercase text-[11px] tracking-wider">
-                    <th className="p-4">Name & Email</th>
+                    <th className="p-4">Staff Member</th>
                     <th className="p-4">Phone</th>
-                    <th className="p-4">Assigned Roles</th>
-                    <th className="p-4">Status</th>
-                    <th className="p-4">Onboarded</th>
+                    <th className="p-4">Role & Permissions</th>
+                    <th className="p-4">Account Status</th>
+                    <th className="p-4">Registered</th>
                     <th className="p-4 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-workspace-border">
-                  {filteredEmployees.map((emp) => (
-                    <tr key={emp.id} className="hover:bg-workspace-hover/50 transition-colors">
-                      <td className="p-4">
-                        <div className="font-semibold text-text-primary flex items-center gap-2">
-                          <span>{emp.name}</span>
-                          {emp.is_owner && (
-                            <span className="px-2 py-0.5 rounded-full bg-workspace-bg border border-workspace-border text-primary text-[10px] font-mono font-bold">
-                              Owner
+                  {filteredEmployees.map((emp) => {
+                    const isPending = emp.status?.toUpperCase() === 'PENDING';
+                    const isActive = emp.status?.toUpperCase() === 'ACTIVE';
+
+                    return (
+                      <tr key={emp.id} className="hover:bg-workspace-hover/50 transition-colors">
+                        <td className="p-4">
+                          <div className="font-semibold text-text-primary flex items-center gap-2">
+                            <span>{emp.name}</span>
+                            {emp.is_owner && (
+                              <span className="px-2 py-0.5 rounded-full bg-workspace-bg border border-workspace-border text-primary text-[10px] font-mono font-bold">
+                                Salon Owner
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-text-muted font-mono text-xs">{emp.email}</div>
+                        </td>
+                        <td className="p-4 font-mono text-text-secondary text-xs">{emp.phone || '—'}</td>
+                        <td className="p-4">
+                          <div className="space-y-1">
+                            <div className="flex flex-wrap gap-1">
+                              {emp.roles && emp.roles.length > 0 ? (
+                                emp.roles.map((r: any, idx: number) => {
+                                  const roleName = typeof r === 'string' ? r : r.name || r.slug;
+                                  return (
+                                    <span
+                                      key={idx}
+                                      className="px-2.5 py-0.5 rounded-md bg-workspace-bg border border-workspace-border text-text-secondary text-[11px] font-medium"
+                                    >
+                                      {roleName}
+                                    </span>
+                                  );
+                                })
+                              ) : (
+                                <span className="text-text-muted italic text-xs">Standard Staff</span>
+                              )}
+                            </div>
+
+                            {emp.is_owner ? (
+                              <span className="text-[11px] text-emerald-600 font-medium">All 10 Features Enabled</span>
+                            ) : emp.has_custom_permissions ? (
+                              <span className="text-[10px] font-mono bg-purple-50 text-purple-700 px-2 py-0.5 rounded border border-purple-200 inline-block">
+                                Custom ({emp.permissions?.length || 0} perms)
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-mono text-text-muted inline-block">
+                                Default Role Access
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="p-4">
+                          {isPending ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold uppercase tracking-wider bg-amber-50 text-amber-800 border border-amber-300">
+                              <Clock className="w-3 h-3 text-amber-600" />
+                              <span>Pending Approval</span>
+                            </span>
+                          ) : isActive ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                              <span>Active</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold uppercase tracking-wider bg-rose-50 text-rose-700 border border-rose-200">
+                              <UserX className="w-3 h-3 text-rose-600" />
+                              <span>Deactivated</span>
                             </span>
                           )}
-                        </div>
-                        <div className="text-text-muted font-mono text-xs">{emp.email}</div>
-                      </td>
-                      <td className="p-4 font-mono text-text-secondary text-xs">{emp.phone || '-'}</td>
-                      <td className="p-4">
-                        <div className="flex flex-wrap gap-1">
-                          {emp.roles && emp.roles.length > 0 ? (
-                            emp.roles.map((r: string, idx: number) => (
-                              <span
-                                key={idx}
-                                className="px-2.5 py-0.5 rounded-md bg-workspace-bg border border-workspace-border text-text-secondary text-[11px] font-medium"
+                        </td>
+                        <td className="p-4 text-text-secondary text-xs">{formatDate(emp.created_at)}</td>
+                        <td className="p-4 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            {/* Approve button if pending */}
+                            {isPending && !emp.is_owner && (
+                              <button
+                                onClick={() => handleActivate(emp)}
+                                className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-all flex items-center gap-1.5"
                               >
-                                {r}
-                              </span>
-                            ))
-                          ) : (
-                            <span className="text-text-muted italic text-xs">No role</span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="p-4">
-                        <span
-                          className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold uppercase tracking-wider ${
-                            emp.status?.toUpperCase() === 'ACTIVE'
-                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                              : 'bg-rose-50 text-rose-700 border border-rose-200'
-                          }`}
-                        >
-                          {emp.status}
-                        </span>
-                      </td>
-                      <td className="p-4 text-text-secondary text-xs">{formatDate(emp.created_at)}</td>
-                      <td className="p-4 text-right">
-                        {!emp.is_owner && (
-                          <button
-                            onClick={() => handleToggleStatus(emp)}
-                            className={`px-3 py-1 rounded-xl text-xs font-medium border transition-all ${
-                              emp.status?.toUpperCase() === 'ACTIVE'
-                                ? 'bg-white border-rose-200 text-rose-700 hover:bg-rose-50'
-                                : 'bg-white border-emerald-200 text-emerald-700 hover:bg-emerald-50'
-                            }`}
-                          >
-                            {emp.status?.toUpperCase() === 'ACTIVE' ? 'Disable Access' : 'Re-activate'}
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                                <Check className="w-3.5 h-3.5" />
+                                <span>Approve Access</span>
+                              </button>
+                            )}
+
+                            {/* Feature Toggles & Edit */}
+                            {!emp.is_owner && (
+                              <button
+                                onClick={() => openEditModal(emp)}
+                                className="px-3 py-1.5 rounded-xl text-xs font-medium border border-workspace-border hover:border-primary text-text-primary hover:text-primary transition-all flex items-center gap-1.5 bg-white"
+                              >
+                                <Sliders className="w-3.5 h-3.5" />
+                                <span>Permissions</span>
+                              </button>
+                            )}
+
+                            {/* Deactivate/Re-activate */}
+                            {!emp.is_owner && !isPending && (
+                              <button
+                                onClick={() => handleToggleStatus(emp)}
+                                className={`px-2.5 py-1.5 rounded-xl text-xs font-medium border transition-all ${
+                                  isActive
+                                    ? 'bg-white border-rose-200 text-rose-700 hover:bg-rose-50'
+                                    : 'bg-white border-emerald-200 text-emerald-700 hover:bg-emerald-50'
+                                }`}
+                              >
+                                {isActive ? 'Disable' : 'Enable'}
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -231,104 +533,277 @@ export default function EmployeesPage() {
       </main>
 
       {/* Add Employee Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+      {isAddModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
           <div className="bg-white border border-workspace-border rounded-2xl w-full max-w-md p-6 shadow-xl">
             <div className="flex justify-between items-center mb-4">
               <h3 className="font-bold text-base text-text-primary">Add Staff Member</h3>
-              <button onClick={() => setIsModalOpen(false)} className="text-text-muted hover:text-text-primary">
+              <button
+                onClick={() => setIsAddModalOpen(false)}
+                className="text-text-muted hover:text-text-primary p-1 rounded-lg"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleCreateEmployee} className="space-y-3.5 text-xs">
+            <form onSubmit={handleCreateEmployee} className="space-y-4">
               <div>
-                <label className="block text-text-secondary font-medium mb-1">Full Name *</label>
+                <label className="block text-xs font-semibold text-text-secondary uppercase tracking-wider mb-1">
+                  Full Name *
+                </label>
                 <input
                   type="text"
                   required
+                  placeholder="e.g. Ramesh Kumar"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Ramesh Kumar"
-                  className="w-full bg-white border border-workspace-border rounded-xl px-3 py-2 text-text-primary text-sm focus:outline-none focus:border-text-primary"
+                  className="w-full bg-white border border-workspace-border rounded-xl px-3.5 py-2 text-sm text-text-primary focus:outline-none focus:border-text-primary"
                 />
               </div>
 
               <div>
-                <label className="block text-text-secondary font-medium mb-1">Work Email *</label>
+                <label className="block text-xs font-semibold text-text-secondary uppercase tracking-wider mb-1">
+                  Work Email *
+                </label>
                 <input
                   type="email"
                   required
+                  placeholder="ramesh@trimzsalon.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="staff@trimzsalon.com"
-                  className="w-full bg-white border border-workspace-border rounded-xl px-3 py-2 text-text-primary text-sm focus:outline-none focus:border-text-primary"
+                  className="w-full bg-white border border-workspace-border rounded-xl px-3.5 py-2 text-sm text-text-primary focus:outline-none focus:border-text-primary"
                 />
               </div>
 
               <div>
-                <label className="block text-text-secondary font-medium mb-1">Temporary Password *</label>
+                <label className="block text-xs font-semibold text-text-secondary uppercase tracking-wider mb-1">
+                  Phone Number
+                </label>
+                <input
+                  type="tel"
+                  placeholder="9876543210"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  className="w-full bg-white border border-workspace-border rounded-xl px-3.5 py-2 text-sm text-text-primary focus:outline-none focus:border-text-primary"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-text-secondary uppercase tracking-wider mb-1">
+                  Initial Password *
+                </label>
                 <input
                   type="password"
                   required
+                  placeholder="••••••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Min 6 characters"
-                  className="w-full bg-white border border-workspace-border rounded-xl px-3 py-2 text-text-primary text-sm focus:outline-none focus:border-text-primary"
+                  className="w-full bg-white border border-workspace-border rounded-xl px-3.5 py-2 text-sm text-text-primary focus:outline-none focus:border-text-primary"
                 />
               </div>
 
               <div>
-                <label className="block text-text-secondary font-medium mb-1">Phone Number</label>
-                <input
-                  type="tel"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="10-digit mobile"
-                  className="w-full bg-white border border-workspace-border rounded-xl px-3 py-2 text-text-primary font-mono text-sm focus:outline-none focus:border-text-primary"
-                />
-              </div>
-
-              <div>
-                <label className="block text-text-secondary font-medium mb-1">Assign Operational Role *</label>
-                <div className="space-y-1.5 max-h-36 overflow-y-auto p-2.5 bg-workspace-bg rounded-xl border border-workspace-border">
+                <label className="block text-xs font-semibold text-text-secondary uppercase tracking-wider mb-1">
+                  Assign Role
+                </label>
+                <select
+                  value={selectedRoleIds[0] || ''}
+                  onChange={(e) => setSelectedRoleIds(e.target.value ? [e.target.value] : [])}
+                  className="w-full bg-white border border-workspace-border rounded-xl px-3.5 py-2 text-sm text-text-primary focus:outline-none focus:border-text-primary"
+                >
                   {roles.map((r) => (
-                    <label key={r.id} className="flex items-center gap-2 text-text-primary cursor-pointer text-xs">
-                      <input
-                        type="checkbox"
-                        checked={selectedRoleIds.includes(r.id)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSelectedRoleIds([...selectedRoleIds, r.id]);
-                          } else {
-                            setSelectedRoleIds(selectedRoleIds.filter((id) => id !== r.id));
-                          }
-                        }}
-                        className="rounded border-workspace-border text-primary accent-primary"
-                      />
-                      <span>{r.name}</span>
-                    </label>
+                    <option key={r.id} value={r.id}>
+                      {r.name}
+                    </option>
                   ))}
-                </div>
+                </select>
               </div>
 
-              <div className="pt-3 flex gap-3">
+              <div className="pt-2 flex justify-end gap-2.5">
                 <button
                   type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="flex-1 py-2.5 rounded-xl bg-white border border-workspace-border hover:bg-workspace-hover text-text-primary font-medium text-sm"
+                  onClick={() => setIsAddModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-text-secondary border border-workspace-border hover:bg-workspace-bg"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={saving}
-                  className="flex-1 py-2.5 rounded-xl bg-primary hover:bg-primary-hover text-white font-medium text-sm shadow-sm"
+                  disabled={savingAdd}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold bg-primary hover:bg-primary-hover text-white shadow-xs flex items-center gap-1.5 disabled:opacity-50"
                 >
-                  {saving ? 'Creating...' : 'Create Account'}
+                  {savingAdd ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                  <span>Add Staff Member</span>
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Feature Permissions & Edit Modal */}
+      {editEmp && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs overflow-y-auto">
+          <div className="bg-white border border-workspace-border rounded-2xl w-full max-w-2xl p-6 shadow-2xl my-8">
+            <div className="flex justify-between items-start pb-4 border-b border-workspace-border">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-bold text-lg text-text-primary">{editEmp.name}</h3>
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase ${
+                      editEmp.status?.toUpperCase() === 'ACTIVE'
+                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                        : editEmp.status?.toUpperCase() === 'PENDING'
+                        ? 'bg-amber-50 text-amber-800 border border-amber-300'
+                        : 'bg-rose-50 text-rose-700 border border-rose-200'
+                    }`}
+                  >
+                    {editEmp.status}
+                  </span>
+                </div>
+                <p className="text-xs text-text-secondary font-mono mt-0.5">{editEmp.email}</p>
+              </div>
+              <button
+                onClick={() => setEditEmp(null)}
+                className="text-text-muted hover:text-text-primary p-1 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Quick Pending Approval Action */}
+            {editEmp.status?.toUpperCase() === 'PENDING' && (
+              <div className="my-4 p-3.5 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5 text-xs text-amber-800">
+                  <Clock className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>This staff member registered online and is waiting for account approval.</span>
+                </div>
+                <button
+                  onClick={() => handleActivate(editEmp)}
+                  className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shrink-0 shadow-xs flex items-center gap-1.5"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  <span>Approve Now</span>
+                </button>
+              </div>
+            )}
+
+            <div className="py-4 space-y-6">
+              {/* Basic Fields */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-text-secondary uppercase tracking-wider mb-1">
+                    Display Name
+                  </label>
+                  <input
+                    type="text"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    className="w-full bg-white border border-workspace-border rounded-xl px-3.5 py-2 text-sm text-text-primary focus:outline-none focus:border-text-primary"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-text-secondary uppercase tracking-wider mb-1">
+                    Phone Number
+                  </label>
+                  <input
+                    type="tel"
+                    value={editPhone}
+                    onChange={(e) => setEditPhone(e.target.value)}
+                    className="w-full bg-white border border-workspace-border rounded-xl px-3.5 py-2 text-sm text-text-primary focus:outline-none focus:border-text-primary"
+                  />
+                </div>
+              </div>
+
+              {/* 10 Owner Feature Switches */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <h4 className="text-sm font-bold text-text-primary flex items-center gap-1.5">
+                      <Sliders className="w-4 h-4 text-primary" />
+                      <span>Owner-Controlled Feature Permissions</span>
+                    </h4>
+                    <p className="text-xs text-text-secondary mt-0.5">
+                      Turn specific features ON or OFF for this staff member. Changes apply instantly.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleResetToRoleDefaults}
+                    className="text-xs text-text-secondary hover:text-text-primary flex items-center gap-1 px-2.5 py-1 rounded-lg border border-workspace-border hover:bg-workspace-bg"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                    <span>Role Defaults</span>
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {OWNER_FEATURES.map((feat) => {
+                    const enabled = isFeatureEnabled(feat);
+
+                    return (
+                      <div
+                        key={feat.id}
+                        onClick={() => toggleFeature(feat)}
+                        className={`p-3.5 rounded-xl border cursor-pointer transition-all flex items-start justify-between gap-3 ${
+                          enabled
+                            ? 'bg-emerald-50/40 border-emerald-300 shadow-xs'
+                            : 'bg-workspace-bg/40 border-workspace-border hover:border-gray-300 opacity-75'
+                        }`}
+                      >
+                        <div className="space-y-0.5">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-text-primary">{feat.name}</span>
+                          </div>
+                          <p className="text-[11px] text-text-secondary leading-snug">{feat.description}</p>
+                        </div>
+
+                        {/* Modern Switch UI */}
+                        <div
+                          className={`w-10 h-5.5 rounded-full transition-colors flex items-center p-0.5 shrink-0 ${
+                            enabled ? 'bg-emerald-600' : 'bg-gray-300'
+                          }`}
+                        >
+                          <div
+                            className={`w-4.5 h-4.5 rounded-full bg-white shadow-xs transform transition-transform ${
+                              enabled ? 'translate-x-4.5' : 'translate-x-0'
+                            }`}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="pt-4 border-t border-workspace-border flex items-center justify-between gap-3">
+              <span className="text-xs text-text-muted">
+                {editPermissions.length} granular permission keys assigned
+              </span>
+
+              <div className="flex items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setEditEmp(null)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-text-secondary border border-workspace-border hover:bg-workspace-bg"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSavePermissions}
+                  disabled={savingEdit}
+                  className="px-5 py-2 rounded-xl text-xs font-semibold bg-primary hover:bg-primary-hover text-white shadow-xs flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  {savingEdit ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                  <span>Save Permissions</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

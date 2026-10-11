@@ -16,13 +16,21 @@ import {
   ArrowUpRight,
   Calendar,
   Loader2,
-  PieChart
+  PieChart,
+  Clock,
+  Check,
+  UserCheck
 } from 'lucide-react';
+import Link from 'next/link';
+import { useAuth } from '@/lib/auth-context';
 
 export default function DashboardPage() {
+  const { user, hasPermission } = useAuth();
   const [timeRange, setTimeRange] = useState('today');
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [loading, setLoading] = useState(true);
+  const [pendingEmployees, setPendingEmployees] = useState<any[]>([]);
+  const [approvingId, setApprovingId] = useState<string | null>(null);
 
   const fetchMetrics = async (range: string) => {
     setLoading(true);
@@ -36,9 +44,37 @@ export default function DashboardPage() {
     }
   };
 
+  const loadPendingStaff = async () => {
+    if (user?.is_owner || hasPermission('employees.view')) {
+      try {
+        const emps = await api.getEmployees();
+        const pending = emps.filter((e: any) => e.status?.toUpperCase() === 'PENDING');
+        setPendingEmployees(pending);
+      } catch (err) {
+        console.error('Failed to load pending staff:', err);
+      }
+    }
+  };
+
   useEffect(() => {
     fetchMetrics(timeRange);
   }, [timeRange]);
+
+  useEffect(() => {
+    loadPendingStaff();
+  }, [user]);
+
+  const handleQuickApprove = async (empId: string) => {
+    setApprovingId(empId);
+    try {
+      await api.activateEmployee(empId);
+      setPendingEmployees((prev) => prev.filter((e) => e.id !== empId));
+    } catch (err: any) {
+      alert(`Failed to approve staff member: ${err.message}`);
+    } finally {
+      setApprovingId(null);
+    }
+  };
 
   const ranges = [
     { key: 'today', label: 'Today' },
@@ -66,6 +102,68 @@ export default function DashboardPage() {
             Real-time revenue, guest demographics, and salon transaction telemetry.
           </p>
         </div>
+
+        {/* Pending Staff Approvals Action Card */}
+        {pendingEmployees.length > 0 && (
+          <div className="bg-amber-50/90 border border-amber-300 rounded-2xl p-5 shadow-sm">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex items-start gap-3.5">
+                <div className="w-10 h-10 rounded-xl bg-amber-100 border border-amber-200 text-amber-700 flex items-center justify-center shrink-0 mt-0.5">
+                  <Clock className="w-5 h-5 animate-pulse" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-bold text-amber-950">
+                      Staff Registration Awaiting Approval ({pendingEmployees.length})
+                    </h3>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-amber-200 text-amber-800 tracking-wider">
+                      Action Required
+                    </span>
+                  </div>
+                  <p className="text-xs text-amber-900/80 mt-1">
+                    New staff accounts registered online and require owner approval and operational feature permissions before accessing the salon terminal.
+                  </p>
+                  <div className="flex flex-wrap gap-2 mt-2.5">
+                    {pendingEmployees.map((emp) => (
+                      <div
+                        key={emp.id}
+                        className="flex items-center gap-2 bg-white/90 border border-amber-200 px-3 py-1.5 rounded-xl shadow-2xs"
+                      >
+                        <div className="text-xs">
+                          <span className="font-bold text-gray-900">{emp.name}</span>{' '}
+                          <span className="text-gray-500 font-mono text-[11px]">({emp.email})</span>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={approvingId === emp.id}
+                          onClick={() => handleQuickApprove(emp.id)}
+                          className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs flex items-center gap-1 transition-all disabled:opacity-50"
+                        >
+                          {approvingId === emp.id ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            <Check className="w-3 h-3" />
+                          )}
+                          <span>Approve</span>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0 self-end md:self-auto">
+                <Link
+                  href="/portal/employees"
+                  className="px-4 py-2.5 rounded-xl text-xs font-bold bg-amber-900 hover:bg-amber-950 text-white shadow-xs flex items-center gap-1.5 transition-all"
+                >
+                  <UserCheck className="w-4 h-4" />
+                  <span>Go to Staff & Permissions</span>
+                </Link>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Filter Interval Bar */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-3.5 rounded-2xl border border-[#E8E5E3] shadow-sm">

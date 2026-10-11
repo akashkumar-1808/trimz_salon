@@ -1,3 +1,4 @@
+import uuid
 from uuid import UUID
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -7,8 +8,10 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import create_access_token
 from app.models.business import Business
-from app.models.auth import User
+from app.models.auth import User, Role, UserRole
+from app.models.audit import AuditLog
 from app.schemas.auth import LoginRequest, TokenResponse, MeResponse, UserOut
+from app.schemas.employee import StaffRegisterRequest
 from app.api.deps import get_current_user, get_user_permissions
 
 import logging
@@ -105,10 +108,15 @@ async def login(credentials: LoginRequest, db: AsyncSession = Depends(get_db)):
                     )
 
                 if user.status != "ACTIVE":
-                    logger.warning("Inactive account login attempt: %s (status=%s)", user_id, user.status)
+                    logger.warning("Non-active account login attempt: %s (status=%s)", user_id, user.status)
+                    detail = (
+                        "Your staff account is pending owner approval. Please contact the salon owner."
+                        if user.status == "PENDING"
+                        else "Your staff account has been deactivated. Contact the salon owner."
+                    )
                     raise HTTPException(
                         status_code=status.HTTP_403_FORBIDDEN,
-                        detail="Your staff account has been deactivated. Contact the salon owner."
+                        detail=detail
                     )
 
                 permissions = get_user_permissions(user)
@@ -161,6 +169,100 @@ async def get_me(current_user: User = Depends(get_current_user)):
         permissions=permissions,
         is_owner=current_user.is_owner
     )
+
+@router.post("/register-staff", status_code=status.HTTP_201_CREATED)
+async def register_staff(data: StaffRegisterRequest, db: AsyncSession = Depends(get_db)):
+    clean_email = data.email.lower().strip()
+    
+    # 1. Resolve business
+    if data.business_id:
+        biz_res = await db.execute(select(Business).where(Business.id == data.business_id))
+        biz = biz_res.scalar_one_or_none()
+    else:
+        biz_res = await db.execute(select(Business).limit(1))
+        biz = biz_res.scalar_one_or_none()
+        
+    if not biz:
+        raise HTTPException(status_code=400, detail="Business not found")
+        
+    # 2. Check duplicate email in profiles
+    existing = await db.execute(select(User).where(User.email == clean_email))
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=400, detail="An account with this email address already exists")
+        
+    # 3. Create user in Supabase Auth via Admin API
+    auth_user_id = uuid.uuid4()
+    if settings.SUPABASE_URL and settings.SUPABASE_SERVICE_ROLE_KEY:
+        headers = {
+            "apikey": settings.SUPABASE_SERVICE_ROLE_KEY,
+            "Authorization": f"Bearer {settings.SUPABASE_SERVICE_ROLE_KEY}",
+            "Content-Type": "application/json"
+        }
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                auth_res = await client.post(
+                    f"{settings.SUPABASE_URL}/auth/v1/admin/users",
+                    headers=headers,
+                    json={
+                        "email": clean_email,
+                        "password": data.password,
+                        "email_confirm": True,
+                        "user_metadata": {
+                            "name": data.name.strip(),
+                            "role": "staff",
+                            "business_id": str(biz.id)
+                        }
+                    }
+                )
+                if auth_res.status_code in [200, 201]:
+                    auth_user_id = UUID(auth_res.json()["id"])
+                elif auth_res.status_code == 422 and "already registered" in auth_res.text:
+                    raise HTTPException(status_code=400, detail="An account with this email already exists")
+                else:
+                    logger.error("Supabase Auth admin create error: %s", auth_res.text)
+                    raise HTTPException(status_code=500, detail="Failed to provision staff account credentials")
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error("Supabase Auth service exception: %s", e)
+            raise HTTPException(status_code=503, detail="Authentication service temporarily unavailable")
+
+    # 4. Create Profile with status=PENDING, is_owner=False (strictly enforced)
+    new_staff = User(
+        id=auth_user_id,
+        business_id=biz.id,
+        email=clean_email,
+        name=data.name.strip(),
+        phone=data.phone.strip() if data.phone else None,
+        is_owner=False,
+        has_custom_permissions=True,
+        status="PENDING"
+    )
+    db.add(new_staff)
+    await db.flush()
+
+    # 5. Assign default 'Service Staff' role
+    role_res = await db.execute(select(Role).where(Role.business_id == biz.id, Role.slug == "service-staff"))
+    default_role = role_res.scalar_one_or_none()
+    if default_role:
+        db.add(UserRole(user_id=new_staff.id, role_id=default_role.id))
+
+    # 6. Audit log
+    db.add(AuditLog(
+        business_id=biz.id,
+        user_id=new_staff.id,
+        action="STAFF_SELF_REGISTERED",
+        entity_name="user",
+        entity_id=new_staff.id,
+        details={"email": clean_email, "name": new_staff.name, "status": "PENDING"}
+    ))
+
+    await db.commit()
+    return {
+        "message": "Staff account registered successfully. Your account is pending owner approval before access is granted.",
+        "status": "PENDING",
+        "email": clean_email
+    }
 
 @router.post("/logout")
 async def logout():

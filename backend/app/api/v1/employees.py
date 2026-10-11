@@ -8,14 +8,21 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
 from app.core.config import settings
 from app.core.database import get_db
-from app.models.auth import User, Role, UserRole
+from app.models.auth import User, Role, UserRole, Permission, UserPermission
 from app.models.audit import AuditLog
 from app.schemas.employee import EmployeeCreate, EmployeeUpdate, EmployeeOut, AssignRoleRequest
-from app.api.deps import get_current_user, require_permission
+from app.api.deps import get_current_user, require_permission, get_user_permissions
 
 router = APIRouter(prefix="/employees", tags=["Employee Management"])
 
+def format_employee_out(u: User) -> EmployeeOut:
+    out = EmployeeOut.model_validate(u)
+    out.permissions = get_user_permissions(u)
+    out.has_custom_permissions = getattr(u, "has_custom_permissions", False)
+    return out
+
 @router.get("", response_model=List[EmployeeOut])
+@router.get("/", response_model=List[EmployeeOut], include_in_schema=False)
 async def list_employees(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_permission("employees.view"))
@@ -25,9 +32,11 @@ async def list_employees(
         .where(User.business_id == current_user.business_id)
         .order_by(User.is_owner.desc(), User.created_at.desc())
     )
-    return result.scalars().all()
+    users = result.scalars().all()
+    return [format_employee_out(u) for u in users]
 
 @router.post("", response_model=EmployeeOut, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=EmployeeOut, status_code=status.HTTP_201_CREATED, include_in_schema=False)
 async def create_employee(
     data: EmployeeCreate,
     db: AsyncSession = Depends(get_db),
@@ -111,7 +120,17 @@ async def create_employee(
         for role in matched_roles:
             db.add(UserRole(user_id=new_user.id, role_id=role.id))
 
-    # 4. Record audit log
+    # 4. Custom direct permissions if provided
+    if data.permissions is not None:
+        new_user.has_custom_permissions = True
+        if len(data.permissions) > 0:
+            perm_res = await db.execute(
+                select(Permission).where(Permission.name.in_(data.permissions))
+            )
+            for p in perm_res.scalars().all():
+                db.add(UserPermission(user_id=new_user.id, permission_id=p.id))
+
+    # 5. Record audit log
     db.add(AuditLog(
         business_id=current_user.business_id,
         user_id=current_user.id,
@@ -123,7 +142,7 @@ async def create_employee(
 
     await db.commit()
     await db.refresh(new_user)
-    return new_user
+    return format_employee_out(new_user)
 
 @router.get("/{employee_id}", response_model=EmployeeOut)
 async def get_employee(
@@ -137,7 +156,7 @@ async def get_employee(
     emp = result.scalar_one_or_none()
     if not emp:
         raise HTTPException(status_code=404, detail="Employee not found")
-    return emp
+    return format_employee_out(emp)
 
 @router.patch("/{employee_id}", response_model=EmployeeOut)
 async def update_employee(
@@ -197,6 +216,20 @@ async def update_employee(
         for role in roles_res.scalars().all():
             db.add(UserRole(user_id=emp.id, role_id=role.id))
 
+    if not emp.is_owner:
+        if data.permissions is not None:
+            emp.has_custom_permissions = True
+            await db.execute(delete(UserPermission).where(UserPermission.user_id == emp.id))
+            if len(data.permissions) > 0:
+                perm_res = await db.execute(
+                    select(Permission).where(Permission.name.in_(data.permissions))
+                )
+                for p in perm_res.scalars().all():
+                    db.add(UserPermission(user_id=emp.id, permission_id=p.id))
+        elif data.has_custom_permissions is False:
+            emp.has_custom_permissions = False
+            await db.execute(delete(UserPermission).where(UserPermission.user_id == emp.id))
+
     db.add(AuditLog(
         business_id=current_user.business_id,
         user_id=current_user.id,
@@ -208,7 +241,34 @@ async def update_employee(
 
     await db.commit()
     await db.refresh(emp)
-    return emp
+    return format_employee_out(emp)
+
+@router.post("/{employee_id}/activate", response_model=EmployeeOut)
+async def activate_employee(
+    employee_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission("employees.edit"))
+):
+    result = await db.execute(
+        select(User).where(User.business_id == current_user.business_id, User.id == employee_id)
+    )
+    emp = result.scalar_one_or_none()
+    if not emp:
+        raise HTTPException(status_code=404, detail="Employee not found")
+
+    emp.status = "ACTIVE"
+    db.add(AuditLog(
+        business_id=current_user.business_id,
+        user_id=current_user.id,
+        action="EMPLOYEE_ACTIVATED",
+        entity_name="user",
+        entity_id=emp.id,
+        details={"name": emp.name, "email": emp.email}
+    ))
+
+    await db.commit()
+    await db.refresh(emp)
+    return format_employee_out(emp)
 
 @router.delete("/{employee_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def deactivate_employee(

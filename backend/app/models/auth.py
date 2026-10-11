@@ -44,6 +44,13 @@ class UserRole(Base):
     role_id = Column(GUID, ForeignKey("roles.id", ondelete="CASCADE"), primary_key=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
+class UserPermission(Base):
+    __tablename__ = "user_permissions"
+
+    user_id = Column(GUID, ForeignKey("profiles.id", ondelete="CASCADE"), primary_key=True)
+    permission_id = Column(GUID, ForeignKey("permissions.id", ondelete="CASCADE"), primary_key=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
 class Profile(Base):
     """
     Application profile table linked 1:1 with Supabase auth.users.
@@ -59,8 +66,9 @@ class Profile(Base):
     phone = Column(String(20), nullable=True)
     avatar_url = Column(Text, nullable=True)
     is_owner = Column(Boolean, nullable=False, default=False)
+    has_custom_permissions = Column(Boolean, nullable=False, default=False)
     status = Column(
-        ENUM("ACTIVE", "INACTIVE", "SUSPENDED", name="user_status", create_type=False),
+        ENUM("ACTIVE", "INACTIVE", "SUSPENDED", "PENDING", name="user_status", create_type=False),
         nullable=False,
         default="ACTIVE"
     )
@@ -68,6 +76,7 @@ class Profile(Base):
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), server_default=func.now())
 
     roles = relationship("Role", secondary="user_roles", lazy="selectin")
+    direct_permissions = relationship("Permission", secondary="user_permissions", lazy="selectin")
 
 # Alias User to Profile for full backward compatibility across existing API routes
 User = Profile

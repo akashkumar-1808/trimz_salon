@@ -1,9 +1,10 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
+import { api } from '@/lib/api';
 import { 
   Home, 
   Receipt, 
@@ -25,6 +26,19 @@ import {
 export default function Sidebar() {
   const pathname = usePathname();
   const { user, roles, hasPermission, logout } = useAuth();
+  const [pendingStaffCount, setPendingStaffCount] = useState(0);
+
+  useEffect(() => {
+    if (user?.is_owner || hasPermission('employees.view')) {
+      api
+        .getEmployees()
+        .then((emps) => {
+          const p = emps.filter((e) => e.status?.toUpperCase() === 'PENDING').length;
+          setPendingStaffCount(p);
+        })
+        .catch(() => {});
+    }
+  }, [user, pathname]);
 
   const navigation = [
     {
@@ -103,7 +117,7 @@ export default function Sidebar() {
       name: 'Invoices',
       href: '/portal/invoices',
       icon: FileText,
-      permission: 'billing.view',
+      permission: ['invoices.view', 'billing.view'],
     },
     {
       name: 'Settings',
@@ -137,8 +151,10 @@ export default function Sidebar() {
         
         {navigation.map((item) => {
           // If user doesn't have permission and isn't owner, skip
-          if (!user?.is_owner && item.permission && !hasPermission(item.permission)) {
-            return null;
+          if (!user?.is_owner && item.permission) {
+            const perms = Array.isArray(item.permission) ? item.permission : [item.permission];
+            const hasAny = perms.some((p) => hasPermission(p));
+            if (!hasAny) return null;
           }
 
           const isActive = pathname === item.href;
@@ -163,7 +179,12 @@ export default function Sidebar() {
                   isActive ? 'text-white' : 'text-[#8A8A8A] group-hover:text-white'
                 }`} 
               />
-              <span className="truncate">{item.name}</span>
+              <span className="truncate flex-1">{item.name}</span>
+              {item.name === 'Staff' && pendingStaffCount > 0 && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500 text-black shadow-2xs animate-pulse">
+                  {pendingStaffCount}
+                </span>
+              )}
             </Link>
           );
         })}

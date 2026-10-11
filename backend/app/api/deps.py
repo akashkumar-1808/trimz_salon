@@ -112,9 +112,14 @@ async def get_current_user(
         await db.refresh(user)
         
     if user.status != "ACTIVE":
+        detail = (
+            "Your staff account is pending owner approval. Please contact the salon owner."
+            if user.status == "PENDING"
+            else "Your staff account has been deactivated. Contact the salon owner."
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, 
-            detail="Your staff account has been deactivated. Contact the salon owner."
+            detail=detail
         )
         
     return user
@@ -125,10 +130,16 @@ def get_user_permissions(user: User) -> List[str]:
         return ["*"] # Owner has unrestricted access
         
     perms = set()
-    for role in user.roles:
-        for perm in role.permissions:
+    # If the owner configured custom feature permissions directly on this staff member
+    if getattr(user, "has_custom_permissions", False):
+        for perm in getattr(user, "direct_permissions", []):
             perms.add(perm.code)
-    return list(perms)
+    else:
+        # Otherwise inherit from assigned roles
+        for role in getattr(user, "roles", []):
+            for perm in getattr(role, "permissions", []):
+                perms.add(perm.code)
+    return sorted(list(perms))
 
 def require_permission(permission_code: str) -> Callable:
     """Dependency factory that verifies the authenticated user possesses the required permission."""
