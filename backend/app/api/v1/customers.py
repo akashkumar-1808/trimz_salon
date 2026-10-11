@@ -36,14 +36,16 @@ async def search_customers(
 @router.get("", response_model=List[CustomerOut])
 async def list_customers(
     search: Optional[str] = None,
+    query: Optional[str] = None,
     limit: int = 50,
     offset: int = 0,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_permission("customers.view"))
 ):
+    search_term = search or query
     stmt = select(Customer).where(Customer.business_id == current_user.business_id)
-    if search:
-        s = f"%{search.strip()}%"
+    if search_term:
+        s = f"%{search_term.strip()}%"
         stmt = stmt.where(or_(Customer.name.ilike(s), Customer.phone.ilike(s)))
     stmt = stmt.order_by(Customer.created_at.desc()).limit(limit).offset(offset)
     result = await db.execute(stmt)

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Topbar from '@/components/Topbar';
 import ReceiptModal from '@/components/ReceiptModal';
 import { api } from '@/lib/api';
@@ -32,7 +32,7 @@ export default function BillingPosPage() {
 
   // Cart & checkout state
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [discountAmount, setDiscountAmount] = useState<number>(0);
+  const [discountPercent, setDiscountPercent] = useState<number>(0);
   const [applyGst, setApplyGst] = useState<boolean>(true);
   const [gstRate, setGstRate] = useState<number>(5); // 5% GST standard for salons
   const [notes, setNotes] = useState('');
@@ -43,6 +43,9 @@ export default function BillingPosPage() {
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerResults, setCustomerResults] = useState<Customer[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState(false);
+  const [activeSearchField, setActiveSearchField] = useState<'name' | 'phone'>('name');
+  const customerDropdownRef = useRef<HTMLDivElement>(null);
 
   // Payment state
   const [paymentMethod, setPaymentMethod] = useState<'UPI' | 'CASH' | 'CARD'>('UPI');
@@ -75,23 +78,49 @@ export default function BillingPosPage() {
     loadData();
   }, []);
 
+  // Close customer dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
+      if (
+        customerDropdownRef.current &&
+        !customerDropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsCustomerDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, []);
+
   // Customer live lookup by name or phone
   useEffect(() => {
-    const query = customerPhone.trim() || customerName.trim();
-    if (!query || selectedCustomer) {
+    if (selectedCustomer) {
       setCustomerResults([]);
+      setIsCustomerDropdownOpen(false);
+      return;
+    }
+    const query = activeSearchField === 'name' ? customerName.trim() : customerPhone.trim();
+    if (!query || query.length < 1) {
+      setCustomerResults([]);
+      setIsCustomerDropdownOpen(false);
       return;
     }
     const timer = setTimeout(async () => {
       try {
         const res = await api.getCustomers(query);
-        setCustomerResults(res || []);
+        const results = res || [];
+        setCustomerResults(results);
+        setIsCustomerDropdownOpen(results.length > 0);
       } catch (err) {
         console.error('Customer lookup error:', err);
       }
     }, 250);
     return () => clearTimeout(timer);
-  }, [customerPhone, customerName, selectedCustomer]);
+  }, [customerPhone, customerName, activeSearchField, selectedCustomer]);
 
   // Filtered services matching search, gender, and category
   const filteredServices = services.filter((svc) => {
@@ -160,16 +189,20 @@ export default function BillingPosPage() {
 
   const clearBill = () => {
     setCart([]);
-    setDiscountAmount(0);
+    setDiscountPercent(0);
     setNotes('');
     setSelectedCustomer(null);
     setCustomerName('');
     setCustomerPhone('');
     setSelectedStaff('');
+    setIsCustomerDropdownOpen(false);
+    setCustomerResults([]);
   };
 
-  // Financial calculations
+  // Financial calculations: services total + percentage discount
   const subtotal = cart.reduce((sum, item) => sum + item.unit_price * item.quantity, 0);
+  const discountRate = Math.min(100, Math.max(0, Number(discountPercent) || 0));
+  const discountAmount = Math.round((subtotal * discountRate) / 100);
   const taxableAmount = Math.max(0, subtotal - discountAmount);
   const taxAmount = applyGst ? Math.round((taxableAmount * gstRate) / 100) : 0;
   const grandTotal = taxableAmount + taxAmount;
@@ -202,6 +235,7 @@ export default function BillingPosPage() {
         customer_name: name,
         customer_id: selectedCustomer?.id || undefined,
         overall_discount: discountAmount,
+        discount_reason: discountRate > 0 ? `${discountRate}% salon discount` : undefined,
         apply_tax: applyGst,
         open_whatsapp: openWhatsApp,
         send_whatsapp: openWhatsApp,
@@ -469,25 +503,98 @@ export default function BillingPosPage() {
 
             {/* Customer & Staff Form Inputs */}
             <div className="space-y-3 pt-3.5">
-              {/* Customer Name */}
-              <div className="relative">
-                <label className="block text-xs font-medium text-[#737373] mb-1">
-                  Customer name
-                </label>
-                <input
-                  type="text"
-                  placeholder="Enter customer name"
-                  value={customerName}
-                  onChange={(e) => {
-                    setCustomerName(e.target.value);
-                    if (selectedCustomer) setSelectedCustomer(null);
-                  }}
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-[#E8E5E3] bg-white text-[#171717] placeholder-[#929292] focus:outline-none focus:border-[#171717] transition-colors"
-                />
+              {/* Customer Search & Details Container */}
+              <div ref={customerDropdownRef} className="space-y-3 relative">
+                {/* Selected Customer Banner */}
+                {selectedCustomer && (
+                  <div className="flex items-center justify-between px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-900 text-xs">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <Sparkles className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
+                      <span className="truncate">
+                        Returning guest: <strong>{selectedCustomer.name}</strong> ({selectedCustomer.phone})
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedCustomer(null);
+                        setIsCustomerDropdownOpen(false);
+                      }}
+                      className="text-emerald-700 hover:text-emerald-950 font-semibold text-[11px] ml-2 underline flex-shrink-0"
+                    >
+                      Change
+                    </button>
+                  </div>
+                )}
 
-                {/* Suggestions Dropdown */}
-                {customerResults.length > 0 && !selectedCustomer && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-[#E8E5E3] rounded-xl shadow-xl max-h-48 overflow-y-auto z-30 divide-y divide-[#F0EEEB]">
+                {/* Customer Name */}
+                <div className="relative">
+                  <label className="block text-xs font-medium text-[#737373] mb-1">
+                    Customer name
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Enter customer name"
+                    value={customerName}
+                    onChange={(e) => {
+                      setCustomerName(e.target.value);
+                      setActiveSearchField('name');
+                      if (selectedCustomer) setSelectedCustomer(null);
+                    }}
+                    onFocus={() => {
+                      setActiveSearchField('name');
+                      if (customerResults.length > 0 && !selectedCustomer) {
+                        setIsCustomerDropdownOpen(true);
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') setIsCustomerDropdownOpen(false);
+                    }}
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-[#E8E5E3] bg-white text-[#171717] placeholder-[#929292] focus:outline-none focus:border-[#171717] transition-colors"
+                  />
+                </div>
+
+                {/* Customer Mobile Number */}
+                <div className="relative">
+                  <label className="block text-xs font-medium text-[#737373] mb-1">
+                    Customer mobile number
+                  </label>
+                  <input
+                    type="tel"
+                    placeholder="Enter mobile to check visit history"
+                    value={customerPhone}
+                    onChange={(e) => {
+                      setCustomerPhone(e.target.value);
+                      setActiveSearchField('phone');
+                      if (selectedCustomer) setSelectedCustomer(null);
+                    }}
+                    onFocus={() => {
+                      setActiveSearchField('phone');
+                      if (customerResults.length > 0 && !selectedCustomer) {
+                        setIsCustomerDropdownOpen(true);
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') setIsCustomerDropdownOpen(false);
+                    }}
+                    className="w-full px-3 py-2 text-xs font-mono rounded-xl border border-[#E8E5E3] bg-white text-[#171717] placeholder-[#929292] focus:outline-none focus:border-[#171717] transition-colors"
+                  />
+                </div>
+
+                {/* Suggestions Dropdown (anchored to container, closes when clicking outside or pressing Escape) */}
+                {isCustomerDropdownOpen && customerResults.length > 0 && !selectedCustomer && (
+                  <div className="absolute top-[calc(100%+4px)] left-0 right-0 bg-white border border-[#E8E5E3] rounded-xl shadow-2xl max-h-56 overflow-y-auto z-40 divide-y divide-[#F0EEEB]">
+                    <div className="p-2 bg-[#F9F8F7] text-[11px] font-semibold text-[#737373] flex items-center justify-between sticky top-0 border-b border-[#E8E5E3]">
+                      <span>Found {customerResults.length} registered {customerResults.length === 1 ? 'guest' : 'guests'}</span>
+                      <button
+                        type="button"
+                        onClick={() => setIsCustomerDropdownOpen(false)}
+                        className="text-[#929292] hover:text-[#171717]"
+                        title="Close suggestions"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                     {customerResults.map((c) => (
                       <div
                         key={c.id}
@@ -495,33 +602,22 @@ export default function BillingPosPage() {
                           setSelectedCustomer(c);
                           setCustomerName(c.name);
                           setCustomerPhone(c.phone);
+                          setIsCustomerDropdownOpen(false);
                           setCustomerResults([]);
                         }}
-                        className="p-2.5 hover:bg-[#F5F4F3] cursor-pointer transition-colors"
+                        className="p-2.5 hover:bg-[#F5F4F3] cursor-pointer transition-colors flex items-center justify-between gap-2"
                       >
-                        <p className="text-xs font-semibold text-[#171717]">{c.name}</p>
-                        <p className="text-[11px] font-mono text-[#737373]">{c.phone} · {c.total_visits} visits</p>
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold text-[#171717] truncate">{c.name}</p>
+                          <p className="text-[11px] font-mono text-[#737373]">{c.phone}</p>
+                        </div>
+                        <span className="text-[10px] font-semibold text-[#E60023] bg-rose-50 px-2 py-0.5 rounded-full flex-shrink-0">
+                          {c.total_visits} {c.total_visits === 1 ? 'visit' : 'visits'}
+                        </span>
                       </div>
                     ))}
                   </div>
                 )}
-              </div>
-
-              {/* Customer Mobile Number */}
-              <div>
-                <label className="block text-xs font-medium text-[#737373] mb-1">
-                  Customer mobile number
-                </label>
-                <input
-                  type="tel"
-                  placeholder="Enter mobile to check visit history"
-                  value={customerPhone}
-                  onChange={(e) => {
-                    setCustomerPhone(e.target.value);
-                    if (selectedCustomer) setSelectedCustomer(null);
-                  }}
-                  className="w-full px-3 py-2 text-xs font-mono rounded-xl border border-[#E8E5E3] bg-white text-[#171717] placeholder-[#929292] focus:outline-none focus:border-[#171717] transition-colors"
-                />
               </div>
 
               {/* Staff Member Selection */}
@@ -604,17 +700,56 @@ export default function BillingPosPage() {
             {/* Financial Controls: Discount & Payment Mode */}
             <div className="grid grid-cols-2 gap-3 mt-4 pt-3.5 border-t border-[#F0EEEB]">
               <div>
-                <label className="block text-[11px] font-medium text-[#737373] mb-1">
-                  Discount amount (₹)
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  value={discountAmount || ''}
-                  placeholder="0"
-                  onChange={(e) => setDiscountAmount(Math.max(0, Number(e.target.value) || 0))}
-                  className="w-full px-3 py-1.5 text-xs font-mono rounded-xl border border-[#E8E5E3] bg-white text-[#171717] focus:outline-none focus:border-[#171717]"
-                />
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-[11px] font-medium text-[#737373]">
+                    Discount (%)
+                  </label>
+                  {discountAmount > 0 && (
+                    <span className="text-[11px] font-mono font-bold text-[#E60023]">
+                      -₹{discountAmount}
+                    </span>
+                  )}
+                </div>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="any"
+                    value={discountPercent === 0 ? '' : discountPercent}
+                    placeholder="0"
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === '') {
+                        setDiscountPercent(0);
+                      } else {
+                        const parsed = Math.min(100, Math.max(0, parseFloat(val)));
+                        setDiscountPercent(isNaN(parsed) ? 0 : parsed);
+                      }
+                    }}
+                    className="w-full pl-3 pr-7 py-1.5 text-xs font-mono rounded-xl border border-[#E8E5E3] bg-white text-[#171717] focus:outline-none focus:border-[#171717]"
+                  />
+                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-[#737373] pointer-events-none">
+                    %
+                  </span>
+                </div>
+                {/* Quick percentage pills */}
+                <div className="flex items-center gap-1 mt-1.5">
+                  {[0, 5, 10, 15, 20].map((pct) => (
+                    <button
+                      key={pct}
+                      type="button"
+                      onClick={() => setDiscountPercent(pct)}
+                      className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium transition-colors ${
+                        discountPercent === pct
+                          ? 'bg-[#171717] text-white'
+                          : 'bg-[#F0EEEB] text-[#737373] hover:bg-[#E8E5E3] hover:text-[#171717]'
+                      }`}
+                    >
+                      {pct}%
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <div>
@@ -665,7 +800,7 @@ export default function BillingPosPage() {
                 <span className="font-mono text-[#171717] font-medium">₹{subtotal.toFixed(0)}</span>
               </div>
               <div className="flex justify-between">
-                <span>Discount</span>
+                <span>Discount {discountRate > 0 ? `(${discountRate}%)` : ''}</span>
                 <span className="font-mono text-[#171717] font-medium">- ₹{discountAmount.toFixed(0)}</span>
               </div>
               <div className="flex justify-between">

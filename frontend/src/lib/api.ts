@@ -130,7 +130,7 @@ class ApiClient {
 
   // Customers
   async getCustomers(query: string = '') {
-    const q = query ? `?query=${encodeURIComponent(query)}` : '';
+    const q = query ? `?query=${encodeURIComponent(query)}&search=${encodeURIComponent(query)}` : '';
     return this.request<any[]>(`/customers/${q}`);
   }
 
