@@ -4,9 +4,30 @@
 
 import { PublicInvoiceData } from '@/lib/types';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
+function resolveApiBaseUrl(): string {
+  const envUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
+  const cleanUrl = envUrl.trim().replace(/\/+$/, '');
+  
+  if (cleanUrl.endsWith('/api/v1')) {
+    return cleanUrl;
+  }
+  if (cleanUrl.endsWith('/api')) {
+    return `${cleanUrl}/v1`;
+  }
+  return `${cleanUrl}/api/v1`;
+}
+
+const API_BASE = resolveApiBaseUrl();
 
 class ApiClient {
+  private buildUrl(endpoint: string): string {
+    const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    if (cleanEndpoint.startsWith('/api/v1/')) {
+      return `${API_BASE}${cleanEndpoint.slice('/api/v1'.length)}`;
+    }
+    return `${API_BASE}${cleanEndpoint}`;
+  }
+
   private getToken(): string | null {
     if (typeof window === 'undefined') return null;
     return localStorage.getItem('trimz_token');
@@ -37,7 +58,8 @@ class ApiClient {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const response = await fetch(`${API_BASE}${endpoint}`, {
+    const targetUrl = this.buildUrl(endpoint);
+    const response = await fetch(targetUrl, {
       ...options,
       headers,
     });
@@ -256,7 +278,7 @@ class ApiClient {
     if (endDate) params.append('end_date', endDate);
     const qs = params.toString() ? `?${params.toString()}` : '';
 
-    const res = await fetch(`${API_BASE}/reports/export/sales-csv${qs}`, {
+    const res = await fetch(this.buildUrl(`/reports/export/sales-csv${qs}`), {
       headers,
     });
     if (!res.ok) {
@@ -275,7 +297,7 @@ class ApiClient {
     if (endDate) params.append('end_date', endDate);
     const qs = params.toString() ? `?${params.toString()}` : '';
 
-    const res = await fetch(`${API_BASE}/reports/export/sales-pdf${qs}`, {
+    const res = await fetch(this.buildUrl(`/reports/export/sales-pdf${qs}`), {
       headers,
     });
     if (!res.ok) {
@@ -305,16 +327,15 @@ class ApiClient {
   }
 
   getInvoiceImageUrl(invoiceId: string) {
-    const token = this.getToken();
-    return `${API_BASE}/invoices/${invoiceId}/image`;
+    return this.buildUrl(`/invoices/${invoiceId}/image`);
   }
 
   getInvoicePrintUrl(invoiceId: string) {
-    return `${API_BASE}/invoices/${invoiceId}/print`;
+    return this.buildUrl(`/invoices/${invoiceId}/print`);
   }
 
   async getPublicInvoice(token: string): Promise<PublicInvoiceData> {
-    const res = await fetch(`${API_BASE}/public/invoices/${encodeURIComponent(token)}`, {
+    const res = await fetch(this.buildUrl(`/public/invoices/${encodeURIComponent(token)}`), {
       method: 'GET',
       headers: {
         'Accept': 'application/json',
