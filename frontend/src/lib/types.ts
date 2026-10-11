@@ -191,3 +191,56 @@ export interface DashboardMetrics {
     revenue: number;
   }[];
 }
+
+export interface PublicInvoiceItem {
+  name: string;
+  stylist?: string;
+  quantity: number;
+  unit_price: number;
+  total_price: number;
+}
+
+export interface PublicInvoiceBusiness {
+  name: string;
+  legal_name?: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  postal_code?: string;
+  slogan?: string;
+  instagram?: string;
+}
+
+export interface PublicInvoicePayment {
+  payment_method: string;
+  payment_provider?: string;
+  status: string;
+  amount_paid: number;
+  balance_due: number;
+  transaction_reference?: string;
+}
+
+export interface PublicInvoiceData {
+  invoice_number: string;
+  sale_number?: string;
+  date: string;
+  time: string;
+  created_at_iso: string;
+  stylist?: string;
+  customer_name?: string;
+  customer_phone_masked?: string;
+  items: PublicInvoiceItem[];
+  subtotal: number;
+  discount_amount: number;
+  tax_amount: number;
+  tax_name: string;
+  tax_percentage: number;
+  total_amount: number;
+  currency: string;
+  status: string;
+  payment: PublicInvoicePayment;
+  business: PublicInvoiceBusiness;
+}
+

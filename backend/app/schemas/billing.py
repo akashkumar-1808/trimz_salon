@@ -78,6 +78,7 @@ class InvoiceOut(BaseModel):
     pdf_url: Optional[str] = None
     image_url: Optional[str] = None
     render_status: Optional[str] = "PENDING"
+    public_invoice_url: Optional[str] = None
     customer_name: Optional[str] = None
     customer_phone: Optional[str] = None
     created_at: datetime
@@ -121,4 +122,54 @@ class CheckoutResponse(BaseModel):
     receipt_text: str
     whatsapp_url: Optional[str] = None
     whatsapp_click_to_chat: Optional[WhatsAppClickToChat] = None
+    public_invoice_url: Optional[str] = None
+    public_invoice_token: Optional[str] = None
     whatsapp_delivery: Optional[WhatsAppDeliveryStatus] = None # Preserved for deferred future features
+
+class PublicInvoiceItem(BaseModel):
+    name: str
+    stylist: Optional[str] = None
+    quantity: int
+    unit_price: float
+    total_price: float
+
+class PublicInvoiceBusiness(BaseModel):
+    name: str
+    legal_name: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    postal_code: Optional[str] = None
+    slogan: Optional[str] = "LOOK GOOD / FEEL GOOD / BE YOU"
+    instagram: Optional[str] = "@trimzunisexsalon"
+
+class PublicInvoicePayment(BaseModel):
+    payment_method: str
+    payment_provider: Optional[str] = None
+    status: str
+    amount_paid: float
+    balance_due: float = 0.0
+    transaction_reference: Optional[str] = None
+
+class PublicInvoiceResponse(BaseModel):
+    invoice_number: str
+    sale_number: Optional[str] = None
+    date: str
+    time: str
+    created_at_iso: str
+    stylist: Optional[str] = None
+    customer_name: Optional[str] = None
+    customer_phone_masked: Optional[str] = None
+    items: List[PublicInvoiceItem] = []
+    subtotal: float
+    discount_amount: float
+    tax_amount: float
+    tax_name: str = "GST"
+    tax_percentage: float = 0.0
+    total_amount: float
+    currency: str = "INR"
+    status: str
+    payment: PublicInvoicePayment
+    business: PublicInvoiceBusiness

@@ -82,6 +82,7 @@ async def init_db():
             owner_role = Role(
                 business_id=biz.id,
                 name="Owner",
+                slug="owner",
                 description="Unrestricted administrative access to all salon operations",
                 is_system=True
             )
@@ -99,6 +100,7 @@ async def init_db():
             rec_role = Role(
                 business_id=biz.id,
                 name="Receptionist",
+                slug="receptionist",
                 description="Front-desk walk-in billing and customer registration",
                 is_system=False
             )
@@ -116,6 +118,7 @@ async def init_db():
             mgr_role = Role(
                 business_id=biz.id,
                 name="Manager",
+                slug="manager",
                 description="Day-to-day salon operations, reporting, inventory, and staff oversight",
                 is_system=False
             )

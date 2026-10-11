@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     # Storage
     STORAGE_DIR: str = "storage"
     BASE_URL: str = "http://127.0.0.1:8000"
+    FRONTEND_URL: str = "https://trimz-salon.vercel.app"
 
     # Meta WhatsApp Cloud API Configuration
     META_WHATSAPP_PHONE_NUMBER_ID: str = ""

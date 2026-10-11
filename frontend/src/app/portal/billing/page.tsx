@@ -242,6 +242,8 @@ export default function BillingPosPage() {
           whatsapp_url: result.whatsapp_url || result.whatsapp_click_to_chat?.url,
           whatsapp_click_to_chat: result.whatsapp_click_to_chat,
           whatsapp_delivery: result.whatsapp_delivery,
+          public_invoice_url: result.public_invoice_url,
+          public_invoice_token: result.public_invoice_token,
           items: (sale.items || []).map((it: any) => ({
             service_name: it.service_name_snapshot,
             quantity: it.quantity,

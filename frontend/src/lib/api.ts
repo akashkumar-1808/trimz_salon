@@ -2,6 +2,8 @@
 // TRIMZ SALON — CENTRALIZED API CLIENT
 // ==============================================================================
 
+import { PublicInvoiceData } from '@/lib/types';
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
 
 class ApiClient {
@@ -309,6 +311,44 @@ class ApiClient {
 
   getInvoicePrintUrl(invoiceId: string) {
     return `${API_BASE}/invoices/${invoiceId}/print`;
+  }
+
+  async getPublicInvoice(token: string): Promise<PublicInvoiceData> {
+    const res = await fetch(`${API_BASE}/public/invoices/${encodeURIComponent(token)}`, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+      },
+      cache: 'no-store',
+    });
+
+    if (res.status === 404) {
+      throw new Error('NOT_FOUND');
+    }
+    if (res.status === 410) {
+      const err = await res.json().catch(() => ({}));
+      if (err.detail && err.detail.toLowerCase().includes('revoked')) {
+        throw new Error('REVOKED');
+      }
+      throw new Error('EXPIRED');
+    }
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || `Request failed with status ${res.status}`);
+    }
+    return res.json();
+  }
+
+  async createInvoicePublicLink(invoiceId: string) {
+    return this.request<{
+      invoice_id: string;
+      invoice_number: string;
+      public_token: string;
+      public_url: string;
+      whatsapp_url?: string;
+    }>(`/invoices/${invoiceId}/public-link`, {
+      method: 'POST',
+    });
   }
 
   // Dashboard Metrics

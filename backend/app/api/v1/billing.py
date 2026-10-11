@@ -25,6 +25,7 @@ from app.schemas.billing import (
     WhatsAppClickToChat
 )
 from app.api.deps import require_permission
+from app.services.public_invoice import create_public_invoice_token, build_public_invoice_url
 # Deferred future feature imports (preserved for on-demand/future releases)
 from app.services.whatsapp_dispatcher import get_or_generate_invoice_image, dispatch_invoice_whatsapp
 
@@ -64,12 +65,13 @@ def generate_whatsapp_receipt_text(
     business: Business,
     sale: Sale,
     invoice: Invoice,
-    customer: Customer
+    customer: Customer,
+    public_invoice_url: Optional[str] = None
 ) -> str:
     """
     Builds authoritative, formatted receipt text for WhatsApp click-to-chat.
     """
-    biz_name = (business.name or "Trimz Salon").strip()
+    biz_name = (business.name or "TRiMZ Unisex Salon").strip()
     cust_name = (customer.name or "Valued Guest").strip()
     created_time = sale.created_at.strftime("%d %b %Y, %I:%M %p") if sale.created_at else ""
 
@@ -111,8 +113,13 @@ def generate_whatsapp_receipt_text(
     else:
         lines.append("Payment Status: *PAID*")
 
+    if public_invoice_url:
+        lines.append("━━━━━━━━━━━━━━━━━━━━")
+        lines.append("🔗 *View Digital Invoice:*")
+        lines.append(public_invoice_url)
+
     lines.append("━━━━━━━━━━━━━━━━━━━━")
-    lines.append("Thank you for visiting Trimz Salon! See you again soon.")
+    lines.append("Thank you for choosing Trimz Salon! See you again soon.")
 
     return "\n".join(lines)
 
@@ -213,9 +220,14 @@ async def checkout(
             inv = inv_res.scalar_one()
             cust_res = await db.execute(select(Customer).where(Customer.id == existing.customer_id))
             cust = cust_res.scalar_one()
+            # Safely create or get public invoice token
+            token_rec, raw_token = await create_public_invoice_token(db, inv)
+            await db.commit()
+            public_url = build_public_invoice_url(raw_token)
+
             # Determine if WhatsApp opening was requested
             should_open_wa = data.open_whatsapp if data.open_whatsapp is not None else data.send_whatsapp
-            wa_receipt_text = generate_whatsapp_receipt_text(business, existing, inv, cust)
+            wa_receipt_text = generate_whatsapp_receipt_text(business, existing, inv, cust, public_invoice_url=public_url)
             wa_url, wa_c2c = build_whatsapp_click_to_chat(cust.phone, wa_receipt_text, should_open_wa)
 
             receipt = generate_thermal_receipt_text(business, existing, inv, cust)
@@ -226,6 +238,8 @@ async def checkout(
                 receipt_text=receipt,
                 whatsapp_url=wa_url,
                 whatsapp_click_to_chat=wa_c2c,
+                public_invoice_url=public_url,
+                public_invoice_token=raw_token,
                 whatsapp_delivery=None
             )
 
@@ -380,6 +394,11 @@ async def checkout(
         currency=business.currency
     )
     db.add(new_invoice)
+    await db.flush()
+
+    # Generate public invoice token and hash
+    token_rec, raw_token = await create_public_invoice_token(db, new_invoice)
+    public_url = build_public_invoice_url(raw_token)
 
     # 8. Update Customer Cache
     customer.total_visits = (customer.total_visits or 0) + 1
@@ -407,11 +426,9 @@ async def checkout(
     await db.refresh(new_sale)
     await db.refresh(new_invoice)
 
-    # 10. Prepare WhatsApp Click-to-Chat (Active Release)
-    # Automatic invoice PNG rendering and Cloud API message dispatch are deliberately
-    # deferred for future releases and not executed during standard billing checkout.
+    # 10. Prepare WhatsApp Click-to-Chat with Digital Web Invoice Link
     should_open_wa = data.open_whatsapp if data.open_whatsapp is not None else data.send_whatsapp
-    wa_receipt_text = generate_whatsapp_receipt_text(business, new_sale, new_invoice, customer)
+    wa_receipt_text = generate_whatsapp_receipt_text(business, new_sale, new_invoice, customer, public_invoice_url=public_url)
     wa_url, wa_c2c = build_whatsapp_click_to_chat(customer.phone, wa_receipt_text, should_open_wa)
 
     receipt = generate_thermal_receipt_text(business, new_sale, new_invoice, customer)
@@ -423,6 +440,8 @@ async def checkout(
         receipt_text=receipt,
         whatsapp_url=wa_url,
         whatsapp_click_to_chat=wa_c2c,
+        public_invoice_url=public_url,
+        public_invoice_token=raw_token,
         whatsapp_delivery=None
     )
 

@@ -12,7 +12,8 @@ from app.models.customer import Customer
 from app.models.auth import User
 from app.models.business import Business
 from app.models.whatsapp import WhatsAppMessage
-from app.api.v1.billing import generate_thermal_receipt_text
+from app.api.v1.billing import generate_thermal_receipt_text, generate_whatsapp_receipt_text, build_whatsapp_click_to_chat
+from app.services.public_invoice import create_public_invoice_token, build_public_invoice_url
 from app.schemas.billing import InvoiceOut, SaleOut
 from app.api.deps import require_permission
 from app.services.whatsapp_dispatcher import get_or_generate_invoice_image, dispatch_invoice_whatsapp
@@ -121,6 +122,7 @@ async def get_invoice_receipt(
             "phone": business.phone if business else "",
             "gstin": business.tax_registration_number if business else None
         },
+        "invoice_id": inv.id,
         "invoice_number": inv.invoice_number,
         "sale_number": sale.sale_number,
         "created_at": inv.created_at,
@@ -357,4 +359,49 @@ async def get_invoice_whatsapp_status(
         "error": msg.error_message,
         "created_at": msg.created_at
     }
+
+@router.post("/{invoice_id}/public-link")
+async def create_or_get_public_invoice_link(
+    invoice_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission("billing.view"))
+):
+    """
+    Safely generates or retrieves a shareable digital invoice web link
+    for an existing invoice without charging or modifying sale/payment data.
+    """
+    inv_res = await db.execute(
+        select(Invoice).where(
+            Invoice.id == invoice_id,
+            Invoice.business_id == current_user.business_id
+        )
+    )
+    inv = inv_res.scalar_one_or_none()
+    if not inv:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+
+    token_rec, raw_token = await create_public_invoice_token(db, inv)
+    await db.commit()
+    public_url = build_public_invoice_url(raw_token)
+
+    sale_res = await db.execute(select(Sale).where(Sale.id == inv.sale_id))
+    sale = sale_res.scalar_one_or_none()
+    customer = sale.customer if sale else None
+
+    biz_res = await db.execute(select(Business).where(Business.id == current_user.business_id))
+    business = biz_res.scalar_one_or_none()
+
+    wa_url = None
+    if customer and business and sale:
+        wa_receipt_text = generate_whatsapp_receipt_text(business, sale, inv, customer, public_invoice_url=public_url)
+        wa_url, _ = build_whatsapp_click_to_chat(customer.phone, wa_receipt_text, requested=True)
+
+    return {
+        "invoice_id": inv.id,
+        "invoice_number": inv.invoice_number,
+        "public_token": raw_token,
+        "public_url": public_url,
+        "whatsapp_url": wa_url
+    }
+
 
