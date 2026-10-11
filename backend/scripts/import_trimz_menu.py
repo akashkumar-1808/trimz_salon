@@ -15,10 +15,10 @@ from typing import Dict, List, Any, Optional
 # Set up backend import path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy import select, text
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, text, delete
 from app.core.config import settings
+from app.core.database import AsyncSessionLocal
 from app.models.business import Business
 from app.models.service import ServiceCategory, Service
 
@@ -442,13 +442,8 @@ async def ensure_sqlite_columns(engine):
             if "combo_items" not in svc_cols:
                 await conn.execute(text("ALTER TABLE services ADD COLUMN combo_items TEXT"))
 
-async def import_catalogue(business_id_str: Optional[str] = None):
-    engine = create_async_engine(settings.DATABASE_URL, echo=False)
-    await ensure_sqlite_columns(engine)
-    
-    async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-
-    async with async_session() as session:
+async def import_catalogue(business_id_str: Optional[str] = None, clear_existing: bool = True):
+    async with AsyncSessionLocal() as session:
         # Determine business
         if business_id_str:
             b_res = await session.execute(select(Business).where(Business.id == business_id_str))
@@ -461,54 +456,36 @@ async def import_catalogue(business_id_str: Optional[str] = None):
             print("ERROR: No business found in database. Please run bootstrap_owner.py first.")
             return False
 
-        print(f"Importing catalog for Business: {biz.name} ({biz.id})")
+        print(f"[*] Importing canonical catalog for Business: {biz.name} ({biz.id})")
+
+        if clear_existing:
+            print("[*] Removing all existing services from database as requested...")
+            # Safely unlink any existing sale items to prevent FK constraints
+            await session.execute(text("UPDATE sale_items SET service_id = NULL WHERE service_id IS NOT NULL"))
+            await session.execute(delete(Service).where(Service.business_id == biz.id))
+            await session.execute(delete(ServiceCategory).where(ServiceCategory.business_id == biz.id))
+            await session.flush()
+            print("[OK] All previous services and categories cleared.")
 
         all_menus = MENS_MENU + WOMENS_MENU
         total_categories = 0
         total_services = 0
 
         for cat_data in all_menus:
-            # Upsert Category
-            cat_stmt = select(ServiceCategory).where(
-                ServiceCategory.business_id == biz.id,
-                ServiceCategory.slug == cat_data["slug"]
+            # Create Category
+            category = ServiceCategory(
+                business_id=biz.id,
+                name=cat_data["category"],
+                slug=cat_data["slug"],
+                department=cat_data["department"],
+                display_order=cat_data["display_order"],
+                is_active=True
             )
-            cat_res = await session.execute(cat_stmt)
-            category = cat_res.scalar_one_or_none()
-
-            if not category:
-                # Also check by name and department
-                cat_stmt2 = select(ServiceCategory).where(
-                    ServiceCategory.business_id == biz.id,
-                    ServiceCategory.name == cat_data["category"],
-                    ServiceCategory.department == cat_data["department"]
-                )
-                cat_res2 = await session.execute(cat_stmt2)
-                category = cat_res2.scalar_one_or_none()
-
-            if not category:
-                category = ServiceCategory(
-                    business_id=biz.id,
-                    name=cat_data["category"],
-                    slug=cat_data["slug"],
-                    department=cat_data["department"],
-                    display_order=cat_data["display_order"],
-                    is_active=True
-                )
-                session.add(category)
-                await session.flush()
-                print(f"  + Added Category: [{cat_data['department']}] {category.name}")
-            else:
-                category.name = cat_data["category"]
-                category.slug = cat_data["slug"]
-                category.department = cat_data["department"]
-                category.display_order = cat_data["display_order"]
-                category.is_active = True
-                await session.flush()
-            
+            session.add(category)
+            await session.flush()
             total_categories += 1
 
-            # Upsert Services in this category
+            # Insert Services in this category
             svc_order = 10
             for s_info in cat_data["services"]:
                 svc_order += 5
@@ -521,61 +498,29 @@ async def import_catalogue(business_id_str: Optional[str] = None):
                 else:
                     item_slug = slugify(f"{cat_data['slug']}-{s_name}")
 
-                # Query existing service
-                svc_stmt = select(Service).where(
-                    Service.business_id == biz.id,
-                    Service.category_id == category.id,
-                    Service.name == s_name,
-                    Service.variant_name == v_name
+                service = Service(
+                    business_id=biz.id,
+                    category_id=category.id,
+                    name=s_name,
+                    slug=item_slug,
+                    variant_name=v_name,
+                    price=s_info["price"],
+                    duration_minutes=s_info["duration"],
+                    audience=s_info["audience"],
+                    is_variable_price=s_info.get("is_variable_price", False),
+                    combo_items=s_info.get("combo_items"),
+                    display_order=svc_order,
+                    is_active=True
                 )
-                svc_res = await session.execute(svc_stmt)
-                service = svc_res.scalar_one_or_none()
-
-                if not service:
-                    # Fallback check by slug
-                    svc_stmt2 = select(Service).where(
-                        Service.business_id == biz.id,
-                        Service.slug == item_slug
-                    )
-                    svc_res2 = await session.execute(svc_stmt2)
-                    service = svc_res2.scalar_one_or_none()
-
-                if not service:
-                    service = Service(
-                        business_id=biz.id,
-                        category_id=category.id,
-                        name=s_name,
-                        slug=item_slug,
-                        variant_name=v_name,
-                        price=s_info["price"],
-                        duration_minutes=s_info["duration"],
-                        audience=s_info["audience"],
-                        is_variable_price=s_info.get("is_variable_price", False),
-                        combo_items=s_info.get("combo_items"),
-                        display_order=svc_order,
-                        is_active=True
-                    )
-                    session.add(service)
-                    total_services += 1
-                else:
-                    # Update fields to match official menu
-                    service.category_id = category.id
-                    service.slug = item_slug
-                    service.price = s_info["price"]
-                    service.duration_minutes = s_info["duration"]
-                    service.audience = s_info["audience"]
-                    service.is_variable_price = s_info.get("is_variable_price", False)
-                    service.combo_items = s_info.get("combo_items")
-                    service.display_order = svc_order
-                    service.is_active = True
-                    total_services += 1
+                session.add(service)
+                total_services += 1
 
         await session.commit()
-        print(f"\nSuccessfully imported catalog!")
-        print(f"Total Categories: {total_categories}")
-        print(f"Total Services: {total_services}")
+        print(f"\n[OK] Successfully imported catalog from official Men's & Women's PDFs!")
+        print(f"    Total Categories: {total_categories}")
+        print(f"    Total Services:   {total_services}")
         return True
 
 if __name__ == "__main__":
     b_id = sys.argv[1] if len(sys.argv) > 1 else None
-    asyncio.run(import_catalogue(b_id))
+    asyncio.run(import_catalogue(b_id, clear_existing=True))
