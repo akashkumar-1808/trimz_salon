@@ -12,3 +12,11 @@ services:
         value: production
       - key: CORS_ORIGINS
         value: https://trimz-salon.vercel.app,http://localhost:3000,http://127.0.0.1:3000
+      - key: DATABASE_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false

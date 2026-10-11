@@ -3,16 +3,21 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.api.v1.router import api_router
-from app.db.init_db import init_db
+import logging
+from sqlalchemy import text
+from app.core.database import engine
+
+logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: ensure database tables & initial seeds exist
+    # Non-destructive startup: verify connection to Supabase PostgreSQL
     try:
-        await init_db()
-        print("Trimz Salon database initialized.")
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+        logger.info("Trimz Salon connected to Supabase PostgreSQL database.")
     except Exception as e:
-        print(f"Warning: DB initialization error: {e}")
+        logger.error("Supabase PostgreSQL connection error: %s", type(e).__name__)
     yield
     # Shutdown logic if any
 

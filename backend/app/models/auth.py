@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 from sqlalchemy import Column, String, Text, Boolean, DateTime, ForeignKey, Table, func
+from sqlalchemy.dialects.postgresql import ENUM
 from sqlalchemy.orm import relationship
 from app.core.database import Base
 from app.models.business import GUID
@@ -58,7 +59,11 @@ class Profile(Base):
     phone = Column(String(20), nullable=True)
     avatar_url = Column(Text, nullable=True)
     is_owner = Column(Boolean, nullable=False, default=False)
-    status = Column(String(20), nullable=False, default="ACTIVE")
+    status = Column(
+        ENUM("ACTIVE", "INACTIVE", "SUSPENDED", name="user_status", create_type=False),
+        nullable=False,
+        default="ACTIVE"
+    )
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), server_default=func.now())
 

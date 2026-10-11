@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 from sqlalchemy import Column, String, Text, Numeric, Integer, DateTime, ForeignKey
+from sqlalchemy.dialects.postgresql import ENUM
 from sqlalchemy.orm import relationship
 from app.core.database import Base
 from app.models.business import GUID
@@ -14,14 +15,17 @@ class Sale(Base):
     operator_id = Column(GUID, ForeignKey("profiles.id", ondelete="RESTRICT"), nullable=False, index=True)
     sale_number = Column(String(50), nullable=False, index=True)
     client_request_id = Column(String(100), nullable=True, index=True)
-    status = Column(String(20), nullable=False, default="COMPLETED") # DRAFT, COMPLETED, CANCELLED, REFUNDED
+    status = Column(
+        ENUM("DRAFT", "COMPLETED", "CANCELLED", "REFUNDED", name="sale_status", create_type=False),
+        nullable=False,
+        default="COMPLETED"
+    )
     subtotal = Column(Numeric(12, 2), nullable=False, default=0.00)
     discount_amount = Column(Numeric(12, 2), nullable=False, default=0.00)
     discount_reason = Column(String(150), nullable=True)
     tax_amount = Column(Numeric(12, 2), nullable=False, default=0.00)
     tax_percentage = Column(Numeric(5, 2), nullable=False, default=0.00)
     total_amount = Column(Numeric(12, 2), nullable=False, default=0.00)
-    staff_name = Column(String(120), nullable=True)
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True)
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
@@ -39,6 +43,14 @@ class Sale(Base):
     @property
     def customer_phone(self):
         return self.customer.phone if self.customer else None
+
+    @property
+    def staff_name(self):
+        return getattr(self, "_staff_name", None) or (self.operator.name if self.operator else None)
+
+    @staff_name.setter
+    def staff_name(self, value):
+        self._staff_name = value
 
 class SaleItem(Base):
     __tablename__ = "sale_items"
@@ -69,9 +81,17 @@ class Payment(Base):
     business_id = Column(GUID, ForeignKey("businesses.id", ondelete="RESTRICT"), nullable=False, index=True)
     sale_id = Column(GUID, ForeignKey("sales.id", ondelete="RESTRICT"), nullable=False, index=True)
     amount = Column(Numeric(12, 2), nullable=False)
-    payment_method = Column(String(20), nullable=False, default="UPI") # CASH, UPI, CARD, OTHER
+    payment_method = Column(
+        ENUM("CASH", "UPI", "CARD", "OTHER", name="payment_method_enum", create_type=False),
+        nullable=False,
+        default="UPI"
+    ) # CASH, UPI, CARD, OTHER
     payment_provider = Column(String(50), nullable=True) # Google Pay, PhonePe, Paytm, etc.
-    status = Column(String(20), nullable=False, default="SUCCESS") # PENDING, SUCCESS, FAILED, REFUNDED
+    status = Column(
+        ENUM("PENDING", "SUCCESS", "FAILED", "REFUNDED", name="payment_status", create_type=False),
+        nullable=False,
+        default="SUCCESS"
+    ) # PENDING, SUCCESS, FAILED, REFUNDED
     transaction_reference = Column(String(100), nullable=True)
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True)

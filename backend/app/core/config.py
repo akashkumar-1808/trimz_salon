@@ -15,8 +15,36 @@ class Settings(BaseSettings):
     SUPABASE_KEY: str = ""
     SUPABASE_SERVICE_ROLE_KEY: str = ""
 
-    # Database: Supports SQLite for zero-config local testing or PostgreSQL / Supabase
-    DATABASE_URL: str = "sqlite+aiosqlite:///./trimz.db"
+    # Database: Supabase PostgreSQL only
+    DATABASE_URL: str = ""
+
+    @field_validator("DATABASE_URL", mode="before")
+    @classmethod
+    def resolve_database_url(cls, v: Union[str, None]) -> str:
+        url = (
+            v
+            or os.getenv("DATABASE_URL")
+            or os.getenv("SUPABASE_DB_URL")
+            or os.getenv("SUPABASE_DATABASE_URL")
+            or os.getenv("POSTGRES_URL")
+            or os.getenv("POSTGRESQL_URL")
+            or ""
+        ).strip()
+        if not url:
+            # Fall back to checking backend/.env directly if pydantic didn't pick it up
+            from dotenv import dotenv_values
+            env_vals = dotenv_values(".env") or dotenv_values("backend/.env")
+            url = (
+                env_vals.get("DATABASE_URL")
+                or env_vals.get("SUPABASE_DB_URL")
+                or env_vals.get("POSTGRES_URL")
+                or ""
+            ).strip()
+        if url.startswith("sqlite"):
+            raise ValueError(
+                "SQLite is strictly disabled. Trimz Salon requires the Supabase PostgreSQL database connection URL."
+            )
+        return url
 
     # Security
     JWT_SECRET: str = "trimz_salon_production_jwt_secret_key_change_in_production"

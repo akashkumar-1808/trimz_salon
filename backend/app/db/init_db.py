@@ -1,8 +1,8 @@
 import asyncio
 from decimal import Decimal
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from app.core.database import engine, Base, AsyncSessionLocal
+from sqlalchemy import select, text
+from app.core.database import engine, Base, AsyncSessionLocal, _is_sqlite
 from app.core.security import get_password_hash
 from app.models.business import Business
 from app.models.auth import Permission, Role, RolePermission, User, UserRole
@@ -39,6 +39,22 @@ PERMISSIONS_SEED = [
 async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        if not _is_sqlite:
+            alter_statements = [
+                "ALTER TABLE service_categories ADD COLUMN IF NOT EXISTS department VARCHAR(50) NOT NULL DEFAULT 'Unisex'",
+                "ALTER TABLE services ADD COLUMN IF NOT EXISTS variant_name VARCHAR(100) DEFAULT NULL",
+                "ALTER TABLE services ADD COLUMN IF NOT EXISTS is_variable_price BOOLEAN NOT NULL DEFAULT FALSE",
+                "ALTER TABLE services ADD COLUMN IF NOT EXISTS combo_items TEXT DEFAULT NULL",
+                "ALTER TABLE services ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN NOT NULL DEFAULT FALSE",
+                "ALTER TABLE invoices ADD COLUMN IF NOT EXISTS image_url TEXT",
+                "ALTER TABLE invoices ADD COLUMN IF NOT EXISTS render_status VARCHAR(20) NOT NULL DEFAULT 'PENDING'",
+                "ALTER TABLE invoices ADD COLUMN IF NOT EXISTS rendered_at TIMESTAMPTZ",
+            ]
+            for stmt in alter_statements:
+                try:
+                    await conn.execute(text(stmt))
+                except Exception:
+                    pass
 
     async with AsyncSessionLocal() as db:
         # 1. Business
@@ -152,8 +168,15 @@ async def init_db():
                 select(ServiceCategory).where(ServiceCategory.business_id == biz.id, ServiceCategory.name == cname)
             )
             c = c_res.scalar_one_or_none()
+            slug = cname.lower().replace(" ", "-").replace("&", "and")
             if not c:
-                c = ServiceCategory(business_id=biz.id, name=cname, display_order=order)
+                c = ServiceCategory(
+                    business_id=biz.id,
+                    name=cname,
+                    slug=slug,
+                    department="Unisex",
+                    display_order=order
+                )
                 db.add(c)
                 await db.flush()
             cat_obj_map[cname] = c
@@ -179,10 +202,12 @@ async def init_db():
                 select(Service).where(Service.business_id == biz.id, Service.name == sname, Service.audience == aud)
             )
             if not s_res.scalar_one_or_none():
+                svc_slug = sname.lower().replace(" ", "-").replace("(", "").replace(")", "").replace("&", "and")
                 svc = Service(
                     business_id=biz.id,
                     category_id=cat_obj_map[cname].id,
                     name=sname,
+                    slug=svc_slug,
                     price=price,
                     duration_minutes=duration,
                     audience=aud,

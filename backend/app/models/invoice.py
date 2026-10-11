@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 from sqlalchemy import Column, String, Numeric, DateTime, ForeignKey, Text, Boolean, Integer
+from sqlalchemy.dialects.postgresql import ENUM
 from sqlalchemy.orm import relationship
 from app.core.database import Base
 from app.models.business import GUID
@@ -12,7 +13,11 @@ class Invoice(Base):
     business_id = Column(GUID, ForeignKey("businesses.id", ondelete="RESTRICT"), nullable=False, index=True)
     sale_id = Column(GUID, ForeignKey("sales.id", ondelete="RESTRICT"), nullable=False, unique=True)
     invoice_number = Column(String(50), nullable=False, index=True)
-    status = Column(String(20), nullable=False, default="ISSUED") # ISSUED, VOID, REPLACED
+    status = Column(
+        ENUM("ISSUED", "VOID", "REPLACED", name="invoice_status", create_type=False),
+        nullable=False,
+        default="ISSUED"
+    ) # ISSUED, VOID, REPLACED
     subtotal = Column(Numeric(12, 2), nullable=False)
     discount_amount = Column(Numeric(12, 2), nullable=False, default=0.00)
     tax_amount = Column(Numeric(12, 2), nullable=False, default=0.00)

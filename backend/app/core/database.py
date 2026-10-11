@@ -3,23 +3,83 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sess
 from sqlalchemy.orm import declarative_base
 from app.core.config import settings
 
+import urllib.parse
+
+def normalize_database_url(url: str) -> str:
+    """
+    Normalizes database connection URLs by safely percent-encoding special characters
+    (such as '@', ':', '%') in passwords or usernames that would otherwise break URI parsing.
+    """
+    if not url:
+        return url
+        
+    url_trimmed = url.strip()
+    if url_trimmed.startswith("sqlite"):
+        return url_trimmed
+
+    # Handle standard dialect prefix conversions
+    if url_trimmed.startswith("postgres://"):
+        url_trimmed = "postgresql://" + url_trimmed[len("postgres://"):]
+
+    if "://" not in url_trimmed:
+        return url_trimmed
+
+    scheme, rest = url_trimmed.split("://", 1)
+    
+    # Separate path / query from authority (user:pass@host:port)
+    path_start = rest.find("/")
+    if path_start != -1:
+        authority = rest[:path_start]
+        path_and_query = rest[path_start:]
+    else:
+        authority = rest
+        path_and_query = ""
+
+    if "@" not in authority:
+        return f"{scheme}://{authority}{path_and_query}"
+
+    # In URI specifications, hostname cannot contain '@'.
+    # Therefore, the LAST '@' in the authority component strictly separates userinfo from host[:port].
+    userinfo, hostport = authority.rsplit("@", 1)
+
+    if ":" in userinfo:
+        user, password = userinfo.split(":", 1)
+        quoted_user = urllib.parse.quote(urllib.parse.unquote(user), safe="")
+        quoted_password = urllib.parse.quote(urllib.parse.unquote(password), safe="")
+        userinfo_clean = f"{quoted_user}:{quoted_password}"
+    else:
+        userinfo_clean = urllib.parse.quote(urllib.parse.unquote(userinfo), safe="")
+
+    return f"{scheme}://{userinfo_clean}@{hostport}{path_and_query}"
+
 def get_async_db_url(url: str) -> str:
-    if url.startswith("postgres://"):
-        return url.replace("postgres://", "postgresql+asyncpg://", 1)
-    if url.startswith("postgresql://") and not any(d in url for d in ["+asyncpg", "+psycopg", "+aiosqlite"]):
-        return url.replace("postgresql://", "postgresql+asyncpg://", 1)
-    if url.startswith("sqlite://") and "+aiosqlite" not in url:
-        return url.replace("sqlite://", "sqlite+aiosqlite://", 1)
-    return url
+    if not url:
+        raise ValueError("DATABASE_URL is not configured. Trimz Salon requires a Supabase PostgreSQL connection URL.")
+    if url.strip().startswith("sqlite"):
+        raise ValueError("SQLite is disabled. Only Supabase PostgreSQL is supported.")
+    normalized = normalize_database_url(url)
+    if normalized.startswith("postgres://"):
+        return normalized.replace("postgres://", "postgresql+asyncpg://", 1)
+    if normalized.startswith("postgresql://") and not any(d in normalized for d in ["+asyncpg", "+psycopg"]):
+        return normalized.replace("postgresql://", "postgresql+asyncpg://", 1)
+    return normalized
 
 # Engine setup
 async_db_url = get_async_db_url(settings.DATABASE_URL)
-_is_sqlite = async_db_url.startswith("sqlite")
+_is_sqlite = False
+connect_args = {
+    # Disable prepared statement caching when connected via Supabase transaction pooler (PgBouncer)
+    "statement_cache_size": 0
+}
+
+from sqlalchemy.pool import NullPool
+
 engine = create_async_engine(
     async_db_url,
     echo=False,
     future=True,
-    pool_pre_ping=not _is_sqlite
+    poolclass=NullPool,
+    connect_args=connect_args
 )
 
 AsyncSessionLocal = async_sessionmaker(

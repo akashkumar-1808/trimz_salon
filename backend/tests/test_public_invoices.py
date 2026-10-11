@@ -34,17 +34,8 @@ async def test_checkout_generates_public_invoice_link_and_whatsapp():
         biz_res = await session.execute(select(Business).limit(1))
         biz = biz_res.scalar_one()
         business_id = biz.id
-
-    mock_owner = User(
-        id=uuid.uuid4(),
-        business_id=business_id,
-        email="owner@trimz.test",
-        name="Main Owner",
-        is_owner=True,
-        status="ACTIVE",
-        created_at=datetime.now(timezone.utc),
-        roles=[]
-    )
+        user_res = await session.execute(select(User).where(User.business_id == business_id).limit(1))
+        mock_owner = user_res.scalar_one()
 
     app.dependency_overrides[get_current_user] = lambda: mock_owner
     try:
