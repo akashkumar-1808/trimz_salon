@@ -8,3 +8,7 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.9
+      - key: ENVIRONMENT
+        value: production
+      - key: CORS_ORIGINS
+        value: https://trimz-salon.vercel.app,http://localhost:3000,http://127.0.0.1:3000

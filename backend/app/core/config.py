@@ -36,7 +36,7 @@ class Settings(BaseSettings):
     META_WHATSAPP_API_VERSION: str = "v20.0"
 
     # CORS
-    CORS_ORIGINS: Union[str, List[str]] = "http://localhost:3000,http://127.0.0.1:3000"
+    CORS_ORIGINS: Union[str, List[str]] = "http://localhost:3000,http://127.0.0.1:3000,https://trimz-salon.vercel.app"
 
     @property
     def cors_origins_list(self) -> List[str]:
