@@ -2,7 +2,7 @@
 
 import React, { useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { useAuth } from '@/lib/auth-context';
+import { useAuth, getDefaultPortalRoute } from '@/lib/auth-context';
 import Sidebar from '@/components/Sidebar';
 import { Loader2, ShieldAlert, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
@@ -24,7 +24,7 @@ export default function PortalLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { user, loading, hasPermission } = useAuth();
+  const { user, loading, permissions, hasPermission, refreshPermissions } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 
@@ -33,6 +33,13 @@ export default function PortalLayout({
       router.replace('/login');
     }
   }, [user, loading, router]);
+
+  // Refresh permissions on route changes to ensure instant permission propagation
+  useEffect(() => {
+    if (user && !user.is_owner) {
+      refreshPermissions();
+    }
+  }, [pathname]);
 
   if (loading) {
     return (
@@ -89,11 +96,11 @@ export default function PortalLayout({
             </p>
             <div className="mt-6 flex gap-3">
               <Link
-                href="/portal/billing"
+                href={getDefaultPortalRoute(user, permissions)}
                 className="px-4 py-2.5 rounded-xl bg-primary hover:bg-primary-hover text-white text-xs font-semibold shadow-xs flex items-center gap-2 transition-all"
               >
                 <ArrowLeft className="w-4 h-4" />
-                <span>Go to Billing & POS</span>
+                <span>Return to Allowed Workspace</span>
               </Link>
             </div>
           </div>

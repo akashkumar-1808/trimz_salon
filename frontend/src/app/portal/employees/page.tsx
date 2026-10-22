@@ -40,7 +40,7 @@ const OWNER_FEATURES: FeatureDef[] = [
     id: 'billing',
     name: 'Billing & POS Checkout',
     description: 'Create new tickets, apply percentage discounts, and complete checkout',
-    requiredPermissions: ['billing.create', 'billing.edit', 'billing.cancel'],
+    requiredPermissions: ['billing.view', 'billing.create', 'billing.edit', 'billing.cancel'],
   },
   {
     id: 'customers',

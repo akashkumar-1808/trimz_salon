@@ -15,6 +15,72 @@ class Settings(BaseSettings):
     SUPABASE_KEY: str = ""
     SUPABASE_SERVICE_ROLE_KEY: str = ""
 
+    @field_validator("SUPABASE_URL", mode="before")
+    @classmethod
+    def resolve_supabase_url(cls, v: Union[str, None]) -> str:
+        import urllib.parse
+        url = (
+            v
+            or os.getenv("SUPABASE_URL")
+            or os.getenv("NEXT_PUBLIC_SUPABASE_URL")
+            or os.getenv("SUPABASE_PROJECT_URL")
+            or ""
+        ).strip().strip("'\"")
+        if not url:
+            from dotenv import dotenv_values
+            env_vals = dotenv_values(".env") or dotenv_values("backend/.env")
+            url = (
+                env_vals.get("SUPABASE_URL")
+                or env_vals.get("NEXT_PUBLIC_SUPABASE_URL")
+                or ""
+            ).strip().strip("'\"")
+        if url:
+            parsed = urllib.parse.urlparse(url)
+            if parsed.scheme and parsed.netloc:
+                url = f"{parsed.scheme}://{parsed.netloc}"
+        return url
+
+    @field_validator("SUPABASE_KEY", mode="before")
+    @classmethod
+    def resolve_supabase_key(cls, v: Union[str, None]) -> str:
+        key = (
+            v
+            or os.getenv("SUPABASE_KEY")
+            or os.getenv("SUPABASE_ANON_KEY")
+            or os.getenv("NEXT_PUBLIC_SUPABASE_ANON_KEY")
+            or os.getenv("SUPABASE_PUBLISHABLE_KEY")
+            or ""
+        ).strip().strip("'\"")
+        if not key:
+            from dotenv import dotenv_values
+            env_vals = dotenv_values(".env") or dotenv_values("backend/.env")
+            key = (
+                env_vals.get("SUPABASE_KEY")
+                or env_vals.get("SUPABASE_ANON_KEY")
+                or env_vals.get("NEXT_PUBLIC_SUPABASE_ANON_KEY")
+                or ""
+            ).strip().strip("'\"")
+        return key
+
+    @field_validator("SUPABASE_SERVICE_ROLE_KEY", mode="before")
+    @classmethod
+    def resolve_service_role_key(cls, v: Union[str, None]) -> str:
+        key = (
+            v
+            or os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+            or os.getenv("SUPABASE_SERVICE_KEY")
+            or ""
+        ).strip().strip("'\"")
+        if not key:
+            from dotenv import dotenv_values
+            env_vals = dotenv_values(".env") or dotenv_values("backend/.env")
+            key = (
+                env_vals.get("SUPABASE_SERVICE_ROLE_KEY")
+                or env_vals.get("SUPABASE_SERVICE_KEY")
+                or ""
+            ).strip().strip("'\"")
+        return key
+
     # Database: Supabase PostgreSQL only
     DATABASE_URL: str = ""
 

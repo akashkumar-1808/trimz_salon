@@ -34,15 +34,16 @@ async def login(credentials: LoginRequest, db: AsyncSession = Depends(get_db)):
         )
 
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        supabase_base = settings.SUPABASE_URL.rstrip('/')
+        async with httpx.AsyncClient(timeout=15.0) as client:
             try:
                 auth_resp = await client.post(
-                    f"{settings.SUPABASE_URL}/auth/v1/token?grant_type=password",
+                    f"{supabase_base}/auth/v1/token?grant_type=password",
                     headers={"apikey": settings.SUPABASE_KEY, "Content-Type": "application/json"},
                     json={"email": email_clean, "password": credentials.password}
                 )
             except (httpx.ConnectError, httpx.TimeoutException, httpx.NetworkError) as net_err:
-                logger.error("Supabase Auth service unreachable during login: %s", type(net_err).__name__)
+                logger.error("Supabase Auth service unreachable during login: %s (%s)", type(net_err).__name__, net_err)
                 raise HTTPException(
                     status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                     detail="Authentication service temporarily unavailable"
@@ -68,7 +69,7 @@ async def login(credentials: LoginRequest, db: AsyncSession = Depends(get_db)):
                 if not user and settings.SUPABASE_SERVICE_ROLE_KEY:
                     try:
                         prof_res = await client.get(
-                            f"{settings.SUPABASE_URL}/rest/v1/profiles?id=eq.{user_id}&select=*",
+                            f"{supabase_base}/rest/v1/profiles?id=eq.{user_id}&select=*",
                             headers={
                                 "apikey": settings.SUPABASE_SERVICE_ROLE_KEY,
                                 "Authorization": f"Bearer {settings.SUPABASE_SERVICE_ROLE_KEY}"
@@ -171,6 +172,7 @@ async def get_me(current_user: User = Depends(get_current_user)):
     )
 
 @router.post("/register-staff", status_code=status.HTTP_201_CREATED)
+@router.post("/register", status_code=status.HTTP_201_CREATED, include_in_schema=False)
 async def register_staff(data: StaffRegisterRequest, db: AsyncSession = Depends(get_db)):
     clean_email = data.email.lower().strip()
     
@@ -199,9 +201,10 @@ async def register_staff(data: StaffRegisterRequest, db: AsyncSession = Depends(
             "Content-Type": "application/json"
         }
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
+            supabase_admin_url = settings.SUPABASE_URL.rstrip('/')
+            async with httpx.AsyncClient(timeout=15.0) as client:
                 auth_res = await client.post(
-                    f"{settings.SUPABASE_URL}/auth/v1/admin/users",
+                    f"{supabase_admin_url}/auth/v1/admin/users",
                     headers=headers,
                     json={
                         "email": clean_email,

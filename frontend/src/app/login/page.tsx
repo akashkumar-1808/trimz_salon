@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/lib/auth-context';
+import { useAuth, getDefaultPortalRoute } from '@/lib/auth-context';
 import { api } from '@/lib/api';
 import {
   Lock,
@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 
 export default function LoginPage() {
-  const { user, loading, hasPermission, login } = useAuth();
+  const { user, loading, permissions, hasPermission, login } = useAuth();
   const router = useRouter();
 
   // Tab: 'owner' | 'staff'
@@ -45,15 +45,9 @@ export default function LoginPage() {
   // Authenticated users visiting /login are redirected to portal
   useEffect(() => {
     if (!loading && user) {
-      if (user.is_owner || hasPermission('dashboard.view') || hasPermission('*')) {
-        router.replace('/portal/dashboard');
-      } else if (hasPermission('billing.view') || hasPermission('billing.create')) {
-        router.replace('/portal/billing');
-      } else {
-        router.replace('/portal/dashboard');
-      }
+      router.replace(getDefaultPortalRoute(user, permissions));
     }
-  }, [user, loading, router, hasPermission]);
+  }, [user, loading, router, permissions]);
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

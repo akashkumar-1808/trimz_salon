@@ -12,8 +12,35 @@ interface AuthContextType {
   permissions: string[];
   loading: boolean;
   hasPermission: (permissionCode: string) => boolean;
+  refreshPermissions: () => Promise<void>;
   login: (email: string, pass: string) => Promise<void>;
   logout: () => Promise<void>;
+}
+
+export function getDefaultPortalRoute(user: User | null, perms: string[]): string {
+  if (!user) return '/login';
+  if (user.is_owner || perms.includes('*') || perms.includes('dashboard.view')) {
+    return '/portal/dashboard';
+  }
+  if (perms.includes('billing.create') || perms.includes('billing.view')) {
+    return '/portal/billing';
+  }
+  if (perms.includes('customers.view')) {
+    return '/portal/customers';
+  }
+  if (perms.includes('services.view')) {
+    return '/portal/services';
+  }
+  if (perms.includes('reports.view')) {
+    return '/portal/reports';
+  }
+  if (perms.includes('employees.view')) {
+    return '/portal/employees';
+  }
+  if (perms.includes('settings.view')) {
+    return '/portal/settings';
+  }
+  return '/portal/dashboard';
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -101,6 +128,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return permissions.includes(permissionCode);
   };
 
+  const refreshPermissions = async () => {
+    try {
+      const freshData = await api.getMe();
+      setUser(freshData.user);
+      const resolvedRoles = freshData.roles || (freshData.user?.roles?.map((r: any) => r.name) || []);
+      const resolvedPerms = freshData.permissions || [];
+      setRoles(resolvedRoles);
+      setPermissions(resolvedPerms);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('trimz_user', JSON.stringify(freshData.user));
+        localStorage.setItem('trimz_roles', JSON.stringify(resolvedRoles));
+        localStorage.setItem('trimz_permissions', JSON.stringify(resolvedPerms));
+      }
+    } catch (e) {
+      console.warn('Failed to refresh permissions:', e);
+    }
+  };
+
   const login = async (email: string, pass: string) => {
     // 1. Authenticate with Supabase Auth using publishable anon key
     const { data, error } = await supabase.auth.signInWithPassword({
@@ -114,14 +159,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const fallbackRes = await api.login({ email, password: pass });
         api.setToken(fallbackRes.access_token);
         setUser(fallbackRes.user);
-        setRoles(fallbackRes.roles || (fallbackRes.user?.roles?.map((r: any) => r.name) || []));
-        setPermissions(fallbackRes.permissions || []);
+        const resolvedRoles = fallbackRes.roles || (fallbackRes.user?.roles?.map((r: any) => r.name) || []);
+        const resolvedPerms = fallbackRes.permissions || [];
+        setRoles(resolvedRoles);
+        setPermissions(resolvedPerms);
         
-        if (fallbackRes.user.is_owner || fallbackRes.permissions.includes('dashboard.view') || fallbackRes.permissions.includes('*')) {
-          router.push('/portal/dashboard');
-        } else {
-          router.push('/portal/billing');
-        }
+        router.push(getDefaultPortalRoute(fallbackRes.user, resolvedPerms));
         return;
       } catch {
         throw new Error(error.message || 'Invalid email or password');
@@ -147,13 +190,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem('trimz_permissions', JSON.stringify(resolvedPerms));
 
     // 3. Smart routing based on verified database permissions
-    if (meData.user.is_owner || resolvedPerms.includes('dashboard.view') || resolvedPerms.includes('*')) {
-      router.push('/portal/dashboard');
-    } else if (resolvedPerms.includes('billing.view') || resolvedPerms.includes('billing.create')) {
-      router.push('/portal/billing');
-    } else {
-      router.push('/portal/dashboard');
-    }
+    router.push(getDefaultPortalRoute(meData.user, resolvedPerms));
   };
 
   const logout = async () => {
@@ -176,7 +213,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, roles, permissions, loading, hasPermission, login, logout }}>
+    <AuthContext.Provider value={{ user, roles, permissions, loading, hasPermission, refreshPermissions, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

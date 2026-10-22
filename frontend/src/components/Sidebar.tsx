@@ -51,7 +51,7 @@ export default function Sidebar() {
       name: 'Billing & POS',
       href: '/portal/billing',
       icon: Receipt,
-      permission: 'billing.create',
+      permission: ['billing.create', 'billing.view'],
     },
     {
       name: 'Appointments',

@@ -69,7 +69,8 @@ async_db_url = get_async_db_url(settings.DATABASE_URL)
 _is_sqlite = False
 connect_args = {
     # Disable prepared statement caching when connected via Supabase transaction pooler (PgBouncer)
-    "statement_cache_size": 0
+    "statement_cache_size": 0,
+    "ssl": "require"
 }
 
 from sqlalchemy.pool import NullPool

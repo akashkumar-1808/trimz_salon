@@ -125,7 +125,9 @@ async def create_employee(
         new_user.has_custom_permissions = True
         if len(data.permissions) > 0:
             perm_res = await db.execute(
-                select(Permission).where(Permission.name.in_(data.permissions))
+                select(Permission).where(
+                    (Permission.code.in_(data.permissions)) | (Permission.name.in_(data.permissions))
+                )
             )
             for p in perm_res.scalars().all():
                 db.add(UserPermission(user_id=new_user.id, permission_id=p.id))
@@ -141,7 +143,8 @@ async def create_employee(
     ))
 
     await db.commit()
-    await db.refresh(new_user)
+    result = await db.execute(select(User).where(User.id == new_user.id))
+    new_user = result.scalar_one()
     return format_employee_out(new_user)
 
 @router.get("/{employee_id}", response_model=EmployeeOut)
@@ -222,7 +225,9 @@ async def update_employee(
             await db.execute(delete(UserPermission).where(UserPermission.user_id == emp.id))
             if len(data.permissions) > 0:
                 perm_res = await db.execute(
-                    select(Permission).where(Permission.name.in_(data.permissions))
+                    select(Permission).where(
+                        (Permission.code.in_(data.permissions)) | (Permission.name.in_(data.permissions))
+                    )
                 )
                 for p in perm_res.scalars().all():
                     db.add(UserPermission(user_id=emp.id, permission_id=p.id))
@@ -240,7 +245,8 @@ async def update_employee(
     ))
 
     await db.commit()
-    await db.refresh(emp)
+    result = await db.execute(select(User).where(User.id == emp.id))
+    emp = result.scalar_one()
     return format_employee_out(emp)
 
 @router.post("/{employee_id}/activate", response_model=EmployeeOut)
@@ -267,7 +273,8 @@ async def activate_employee(
     ))
 
     await db.commit()
-    await db.refresh(emp)
+    result = await db.execute(select(User).where(User.id == emp.id))
+    emp = result.scalar_one()
     return format_employee_out(emp)
 
 @router.delete("/{employee_id}", status_code=status.HTTP_204_NO_CONTENT)
