@@ -24,6 +24,12 @@ from app.schemas.billing import (
     WhatsAppDeliveryStatus,
     WhatsAppClickToChat
 )
+from app.schemas.membership import (
+    BillCalculateRequest,
+    BillCalculationSummary
+)
+from app.models.membership import MembershipUsageLedger
+from app.services.membership import calculate_membership_benefits
 from app.api.deps import require_permission
 from app.services.public_invoice import create_public_invoice_token, build_public_invoice_url
 # Deferred future feature imports (preserved for on-demand/future releases)
@@ -90,10 +96,16 @@ def generate_whatsapp_receipt_text(
     lines.append("*Services & Products:*")
     for item in sale.items:
         qty_str = f" x{item.quantity}" if item.quantity > 1 else ""
-        lines.append(f"• {item.service_name_snapshot}{qty_str} — ₹{item.total_price:,.2f}")
+        comp_str = " (FREE VIP Perk)" if getattr(item, "is_complimentary", False) else ""
+        lines.append(f"• {item.service_name_snapshot}{qty_str}{comp_str} — ₹{item.total_price:,.2f}")
 
     lines.append("━━━━━━━━━━━━━━━━━━━━")
     lines.append(f"Subtotal: ₹{sale.subtotal:,.2f}")
+    if getattr(sale, "membership_snapshot", None):
+        plan_title = sale.membership_snapshot.get("name", "VIP Membership")
+        lines.append(f"⭐ VIP Member: {plan_title}")
+    if getattr(sale, "membership_discount_amount", None) and sale.membership_discount_amount > 0:
+        lines.append(f"VIP Member Savings: -₹{sale.membership_discount_amount:,.2f}")
     if sale.discount_amount and sale.discount_amount > 0:
         disc_reason = f" ({sale.discount_reason})" if sale.discount_reason else ""
         lines.append(f"Discount{disc_reason}: -₹{sale.discount_amount:,.2f}")
@@ -189,6 +201,33 @@ def generate_thermal_receipt_text(business: Business, sale: Sale, invoice: Invoi
     ])
     return "\n".join(lines)
 
+@router.post("/calculate", response_model=BillCalculationSummary)
+async def calculate_bill(
+    data: BillCalculateRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission("billing.create"))
+):
+    """
+    Authoritative server-side calculation for POS bill preview.
+    Evaluates catalogue prices, eligible customer membership benefits,
+    complimentary services, usage limits, manual discounts, and tax.
+    """
+    if not data.items:
+        raise HTTPException(status_code=400, detail="Cannot calculate bill for empty cart")
+    
+    summary = await calculate_membership_benefits(
+        db=db,
+        business_id=current_user.business_id,
+        customer_phone=data.customer_phone,
+        customer_id=data.customer_id,
+        items_in=data.items,
+        overall_discount=data.overall_discount,
+        discount_reason=data.discount_reason,
+        apply_tax=data.apply_tax,
+        for_checkout=False
+    )
+    return summary
+
 @router.post("/checkout", response_model=CheckoutResponse, status_code=status.HTTP_201_CREATED)
 async def checkout(
     data: CheckoutRequest,
@@ -264,55 +303,29 @@ async def checkout(
     elif data.customer_name and data.customer_name.strip() and customer.name != data.customer_name.strip():
         customer.name = data.customer_name.strip()
 
-    # 3. Cart & Historical Snapshots Calculation
-    subtotal = Decimal("0.00")
-    items_to_create = []
+    # 3. Authoritative Server-Side Calculation (Concurrency-Safe with Membership Row Lock)
+    calc_summary = await calculate_membership_benefits(
+        db=db,
+        business_id=current_user.business_id,
+        customer_phone=customer.phone,
+        customer_id=customer.id,
+        items_in=data.items,
+        overall_discount=data.overall_discount,
+        discount_reason=data.discount_reason,
+        apply_tax=data.apply_tax,
+        for_checkout=True
+    )
 
-    for item_in in data.items:
-        if item_in.service_id:
-            svc_res = await db.execute(
-                select(Service).where(
-                    Service.id == item_in.service_id,
-                    Service.business_id == current_user.business_id
-                )
-            )
-            svc = svc_res.scalar_one_or_none()
-            if not svc:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Service '{item_in.name}' does not exist."
-                )
-            if svc.is_deleted or not svc.is_active:
-                status_desc = "removed" if svc.is_deleted else "paused"
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Service '{svc.name}' is currently {status_desc} and cannot be added to new bills."
-                )
+    subtotal = calc_summary.subtotal
+    membership_discount = calc_summary.total_membership_discount
+    manual_discount = calc_summary.total_manual_discount
+    taxable_amount = calc_summary.taxable_amount
+    tax_percentage = calc_summary.tax_percentage
+    tax_amount = calc_summary.tax_amount
+    grand_total = calc_summary.grand_total
+    membership_applied = calc_summary.membership_applied
 
-        line_sub = Decimal(str(item_in.unit_price)) * Decimal(str(item_in.quantity))
-        line_disc = Decimal(str(item_in.discount_amount))
-        line_total = max(Decimal("0.00"), line_sub - line_disc)
-        subtotal += line_total
-
-        sale_item = SaleItem(
-            service_id=item_in.service_id,
-            item_type=item_in.item_type,
-            service_name_snapshot=item_in.name.strip(),
-            unit_price_snapshot=Decimal(str(item_in.unit_price)),
-            quantity=item_in.quantity,
-            discount_amount=line_disc,
-            tax_amount=Decimal("0.00"),
-            total_price=line_total,
-            commission_rate_snapshot=Decimal(str(item_in.commission_rate))
-        )
-        items_to_create.append(sale_item)
-
-    overall_disc = Decimal(str(data.overall_discount))
-    taxable_amount = max(Decimal("0.00"), subtotal - overall_disc)
-    
-    tax_percentage = Decimal(str(business.default_tax_rate)) if data.apply_tax else Decimal("0.00")
-    tax_amount = round(taxable_amount * tax_percentage / Decimal("100.00"), 2)
-    grand_total = taxable_amount + tax_amount
+    customer_membership_id = UUID(membership_applied["id"]) if membership_applied and membership_applied.get("id") else None
 
     # 4. Generate Sequential Numbers
     now_utc = datetime.now(timezone.utc)
@@ -328,17 +341,20 @@ async def checkout(
     sale_number = f"{business.bill_prefix}-{date_str}-{total_sales_count:04d}"
     invoice_number = f"TRIMZ-{month_str}-{total_sales_count:04d}"
 
-    # 5. Create Sale
+    # 5. Create Authoritative Sale with Membership Snapshot
     new_sale = Sale(
         business_id=current_user.business_id,
         customer_id=customer.id,
+        customer_membership_id=customer_membership_id,
         operator_id=current_user.id,
         sale_number=sale_number,
         client_request_id=idempotency_key,
         status="COMPLETED",
         subtotal=subtotal,
-        discount_amount=overall_disc,
+        discount_amount=manual_discount,
         discount_reason=data.discount_reason,
+        membership_discount_amount=membership_discount,
+        membership_snapshot=membership_applied,
         tax_amount=tax_amount,
         tax_percentage=tax_percentage,
         total_amount=grand_total,
@@ -348,9 +364,41 @@ async def checkout(
     db.add(new_sale)
     await db.flush()
 
-    for item in items_to_create:
-        item.sale_id = new_sale.id
-        db.add(item)
+    # 6. Create Sale Items and Durable Membership Usage Ledger
+    for item_calc in calc_summary.items:
+        sale_item = SaleItem(
+            sale_id=new_sale.id,
+            service_id=item_calc.service_id,
+            item_type=item_calc.item_type,
+            service_name_snapshot=item_calc.name,
+            unit_price_snapshot=item_calc.catalogue_price,
+            quantity=item_calc.quantity,
+            discount_amount=item_calc.membership_discount + item_calc.manual_discount,
+            membership_discount_amount=item_calc.membership_discount,
+            membership_benefit_id=item_calc.benefit_id,
+            is_complimentary=item_calc.is_complimentary,
+            tax_amount=Decimal("0.00"),
+            total_price=item_calc.line_total,
+            commission_rate_snapshot=Decimal("0.00")
+        )
+        db.add(sale_item)
+        await db.flush()
+
+        # Record usage ledger if benefit consumed
+        if customer_membership_id and (item_calc.benefit_id or item_calc.is_complimentary or item_calc.membership_discount > Decimal("0.00")):
+            ledger_entry = MembershipUsageLedger(
+                business_id=current_user.business_id,
+                membership_id=customer_membership_id,
+                benefit_id=item_calc.benefit_id,
+                benefit_name=item_calc.benefit_name or "VIP Membership Perk",
+                benefit_type="COMPLIMENTARY_SERVICE" if item_calc.is_complimentary else "DISCOUNT",
+                sale_id=new_sale.id,
+                sale_item_id=sale_item.id,
+                quantity_used=item_calc.quantity,
+                discount_applied=item_calc.membership_discount,
+                is_reversal=False
+            )
+            db.add(ledger_entry)
 
     # 6. Record Payments
     payments_to_create = []

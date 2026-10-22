@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, Text, Numeric, Integer, DateTime, ForeignKey
+from sqlalchemy import Column, String, Text, Numeric, Integer, DateTime, ForeignKey, JSON, Boolean
 from sqlalchemy.dialects.postgresql import ENUM
 from sqlalchemy.orm import relationship
 from app.core.database import Base
@@ -23,6 +23,10 @@ class Sale(Base):
     subtotal = Column(Numeric(12, 2), nullable=False, default=0.00)
     discount_amount = Column(Numeric(12, 2), nullable=False, default=0.00)
     discount_reason = Column(String(150), nullable=True)
+    membership_discount_amount = Column(Numeric(12, 2), nullable=False, default=0.00)
+    manual_discount_amount = Column(Numeric(12, 2), nullable=False, default=0.00)
+    customer_membership_id = Column(GUID, ForeignKey("customer_memberships.id", ondelete="SET NULL"), nullable=True, index=True)
+    membership_snapshot = Column(JSON, nullable=True)
     tax_amount = Column(Numeric(12, 2), nullable=False, default=0.00)
     tax_percentage = Column(Numeric(5, 2), nullable=False, default=0.00)
     total_amount = Column(Numeric(12, 2), nullable=False, default=0.00)
@@ -35,6 +39,7 @@ class Sale(Base):
     items = relationship("SaleItem", back_populates="sale", cascade="all, delete-orphan", lazy="selectin")
     payments = relationship("Payment", back_populates="sale", cascade="all, delete-orphan", lazy="selectin")
     invoice = relationship("Invoice", back_populates="sale", uselist=False, lazy="selectin")
+    membership = relationship("CustomerMembership", foreign_keys=[customer_membership_id], lazy="selectin")
 
     @property
     def customer_name(self):
@@ -65,6 +70,9 @@ class SaleItem(Base):
     unit_price_snapshot = Column(Numeric(12, 2), nullable=False)
     quantity = Column(Integer, nullable=False, default=1)
     discount_amount = Column(Numeric(12, 2), nullable=False, default=0.00)
+    membership_discount_amount = Column(Numeric(12, 2), nullable=False, default=0.00)
+    is_complimentary = Column(Boolean, nullable=False, default=False)
+    membership_benefit_id = Column(GUID, nullable=True)
     tax_amount = Column(Numeric(12, 2), nullable=False, default=0.00)
     total_price = Column(Numeric(12, 2), nullable=False)
     commission_rate_snapshot = Column(Numeric(5, 2), default=0.00)

@@ -12,6 +12,7 @@ from app.api.v1.settings import router as settings_router
 from app.api.v1.reports import router as reports_router
 from app.api.v1.webhooks import router as webhooks_router
 from app.api.v1.public import router as public_router
+from app.api.v1.memberships import router as memberships_router
 
 api_router = APIRouter(prefix="/v1")
 
@@ -28,4 +29,5 @@ api_router.include_router(settings_router)
 api_router.include_router(reports_router)
 api_router.include_router(webhooks_router)
 api_router.include_router(public_router, prefix="/public")
+api_router.include_router(memberships_router)
 

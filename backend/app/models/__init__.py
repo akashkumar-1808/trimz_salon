@@ -5,7 +5,13 @@ from app.models.service import ServiceCategory, Service
 from app.models.sale import Sale, SaleItem, Payment
 from app.models.invoice import Invoice, PublicInvoiceToken
 from app.models.whatsapp import WhatsAppMessage
-from app.models.audit import AuditLog
+from app.models.membership import (
+    MembershipPlan,
+    MembershipBenefit,
+    CustomerMembership,
+    MembershipPauseLog,
+    MembershipUsageLedger
+)
 
 __all__ = [
     "Business",
@@ -24,5 +30,10 @@ __all__ = [
     "Invoice",
     "PublicInvoiceToken",
     "WhatsAppMessage",
-    "AuditLog"
+    "AuditLog",
+    "MembershipPlan",
+    "MembershipBenefit",
+    "CustomerMembership",
+    "MembershipPauseLog",
+    "MembershipUsageLedger"
 ]

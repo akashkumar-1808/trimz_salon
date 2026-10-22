@@ -2,7 +2,7 @@
 // TRIMZ SALON — CENTRALIZED API CLIENT
 // ==============================================================================
 
-import { PublicInvoiceData } from '@/lib/types';
+import { PublicInvoiceData, MembershipPlan, CustomerMembership, BillCalculationSummary } from '@/lib/types';
 
 function resolveApiBaseUrl(): string {
   const envUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
@@ -388,6 +388,97 @@ class ApiClient {
   // Dashboard Metrics
   async getDashboardMetrics(timeRange: string = 'today') {
     return this.request<any>(`/dashboard/metrics?period=${encodeURIComponent(timeRange)}&time_range=${encodeURIComponent(timeRange)}`);
+  }
+
+  // Membership Plans
+  async getMembershipPlans(): Promise<MembershipPlan[]> {
+    return this.request<MembershipPlan[]>('/memberships/plans');
+  }
+
+  async createMembershipPlan(data: any): Promise<MembershipPlan> {
+    return this.request<MembershipPlan>('/memberships/plans', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateMembershipPlan(planId: string, data: any): Promise<MembershipPlan> {
+    return this.request<MembershipPlan>(`/memberships/plans/${planId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  // Customer Memberships
+  async getMemberships(params?: { search?: string; status_filter?: string; plan_id?: string }): Promise<CustomerMembership[]> {
+    const q = new URLSearchParams();
+    if (params?.search) q.append('search', params.search);
+    if (params?.status_filter) q.append('status_filter', params.status_filter);
+    if (params?.plan_id) q.append('plan_id', params.plan_id);
+    const qs = q.toString();
+    return this.request<CustomerMembership[]>(`/memberships${qs ? `?${qs}` : ''}`);
+  }
+
+  async getMembershipDetail(membershipId: string): Promise<CustomerMembership> {
+    return this.request<CustomerMembership>(`/memberships/${membershipId}`);
+  }
+
+  async registerMembership(data: any): Promise<CustomerMembership> {
+    return this.request<CustomerMembership>('/memberships/register', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async pauseMembership(membershipId: string, reason?: string): Promise<CustomerMembership> {
+    return this.request<CustomerMembership>(`/memberships/${membershipId}/pause`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  }
+
+  async resumeMembership(membershipId: string, reason?: string): Promise<CustomerMembership> {
+    return this.request<CustomerMembership>(`/memberships/${membershipId}/resume`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  }
+
+  async renewMembership(membershipId: string, data: any): Promise<CustomerMembership> {
+    return this.request<CustomerMembership>(`/memberships/${membershipId}/renew`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async cancelMembership(membershipId: string, reason: string): Promise<CustomerMembership> {
+    return this.request<CustomerMembership>(`/memberships/${membershipId}/cancel`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  }
+
+  // POS Eligibility & Authoritative Calculation
+  async getCustomerEligibleMembership(customerId: string): Promise<{ has_membership: boolean; is_eligible: boolean; membership?: CustomerMembership }> {
+    return this.request<{ has_membership: boolean; is_eligible: boolean; membership?: CustomerMembership }>(`/memberships/customer/${customerId}/eligible`);
+  }
+
+  async getCustomerEligibleMembershipByPhone(phone: string): Promise<{ has_membership: boolean; is_eligible: boolean; customer?: any; membership?: CustomerMembership }> {
+    return this.request<{ has_membership: boolean; is_eligible: boolean; customer?: any; membership?: CustomerMembership }>(`/memberships/customer/by-phone/${encodeURIComponent(phone)}/eligible`);
+  }
+
+  async calculateBill(data: {
+    customer_phone?: string;
+    customer_id?: string;
+    items: any[];
+    overall_discount?: number;
+    discount_reason?: string;
+    apply_tax?: boolean;
+  }): Promise<BillCalculationSummary> {
+    return this.request<BillCalculationSummary>('/billing/calculate', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
   }
 
   // Audit Logs

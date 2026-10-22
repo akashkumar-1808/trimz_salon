@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Any, Dict
 from uuid import UUID
 from datetime import datetime
 from decimal import Decimal
@@ -49,6 +49,9 @@ class SaleItemOut(BaseModel):
     discount_amount: Decimal
     tax_amount: Decimal
     total_price: Decimal
+    is_complimentary: bool = False
+    membership_benefit_id: Optional[UUID] = None
+    membership_discount_amount: Decimal = Decimal("0.00")
 
     class Config:
         from_attributes = True
@@ -105,6 +108,9 @@ class SaleOut(BaseModel):
     tax_amount: Decimal
     tax_percentage: Decimal
     total_amount: Decimal
+    customer_membership_id: Optional[UUID] = None
+    membership_discount_amount: Optional[Decimal] = Decimal("0.00")
+    membership_snapshot: Optional[Any] = None
     staff_name: Optional[str]
     notes: Optional[str]
     created_at: datetime
