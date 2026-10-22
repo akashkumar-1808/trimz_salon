@@ -116,8 +116,11 @@ export default function EmployeesPage() {
   const [editStatus, setEditStatus] = useState<string>('ACTIVE');
   const [savingEdit, setSavingEdit] = useState(false);
 
+  const [error, setError] = useState<string | null>(null);
+
   const loadData = async () => {
     setLoading(true);
+    setError(null);
     try {
       const [emps, rls] = await Promise.all([
         api.getEmployees(),
@@ -129,8 +132,9 @@ export default function EmployeesPage() {
         const rec = rls.find((r) => r.slug === 'receptionist') || rls[0];
         setSelectedRoleIds([rec.id]);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to load team data:', err);
+      setError(err?.message || 'Failed to load staff roster from server.');
     } finally {
       setLoading(false);
     }
@@ -390,10 +394,41 @@ export default function EmployeesPage() {
             </h3>
           </div>
 
+          {error && (
+            <div className="p-4 mx-4 mt-4 rounded-xl bg-rose-50 border border-rose-200 flex items-center justify-between text-xs text-rose-800">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span><strong>API Error:</strong> {error}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => loadData()}
+                className="px-3 py-1 rounded-lg bg-white border border-rose-300 font-medium hover:bg-rose-100 transition-colors flex items-center gap-1"
+              >
+                <RotateCcw className="w-3 h-3" />
+                <span>Retry</span>
+              </button>
+            </div>
+          )}
+
           {loading ? (
             <div className="p-16 flex flex-col items-center justify-center gap-2">
               <Loader2 className="w-6 h-6 animate-spin text-primary" />
               <span className="text-xs text-text-muted">Loading team roster...</span>
+            </div>
+          ) : error && employees.length === 0 ? (
+            <div className="p-16 text-center text-rose-600 text-sm flex flex-col items-center gap-3">
+              <AlertTriangle className="w-8 h-8 text-rose-500" />
+              <p className="font-medium">Could not load staff records</p>
+              <p className="text-xs text-text-muted max-w-sm">{error}</p>
+              <button
+                type="button"
+                onClick={() => loadData()}
+                className="mt-2 px-4 py-2 rounded-xl bg-primary text-white text-xs font-semibold hover:bg-primary-hover transition-all flex items-center gap-1.5 shadow-sm"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Reload Team Data</span>
+              </button>
             </div>
           ) : filteredEmployees.length === 0 ? (
             <div className="p-16 text-center text-text-muted text-sm">
