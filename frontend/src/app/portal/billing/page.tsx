@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import Topbar from '@/components/Topbar';
 import ReceiptModal from '@/components/ReceiptModal';
 import { api } from '@/lib/api';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, toSafeNumber } from '@/lib/utils';
 import { Service, ServiceCategory, Customer, CartItem, MembershipPlan, CustomerMembership, BillCalculationSummary } from '@/lib/types';
 import { 
   Search, 
@@ -337,13 +337,14 @@ export default function BillingPosPage() {
   };
 
   // Authoritative calculations (serverCalc prioritized, fallback to local estimate)
-  const subtotal = serverCalc ? serverCalc.subtotal : cart.reduce((sum, item) => sum + item.unit_price * item.quantity, 0);
-  const discountRate = Math.min(100, Math.max(0, Number(discountPercent) || 0));
-  const manualDiscountAmount = serverCalc ? serverCalc.total_manual_discount : Math.round((subtotal * discountRate) / 100);
-  const membershipDiscountAmount = serverCalc ? serverCalc.total_membership_discount : 0;
-  const taxableAmount = serverCalc ? serverCalc.taxable_amount : Math.max(0, subtotal - manualDiscountAmount);
-  const taxAmount = serverCalc ? serverCalc.tax_amount : (applyGst ? Math.round((taxableAmount * gstRate) / 100) : 0);
-  const grandTotal = serverCalc ? serverCalc.grand_total : taxableAmount + taxAmount;
+  const rawSubtotal = cart.reduce((sum, item) => sum + (toSafeNumber(item.unit_price) * toSafeNumber(item.quantity, 1)), 0);
+  const subtotal = serverCalc ? toSafeNumber(serverCalc.subtotal) : rawSubtotal;
+  const discountRate = Math.min(100, Math.max(0, toSafeNumber(discountPercent)));
+  const manualDiscountAmount = serverCalc ? toSafeNumber(serverCalc.total_manual_discount) : Math.round((subtotal * discountRate) / 100);
+  const membershipDiscountAmount = serverCalc ? toSafeNumber(serverCalc.total_membership_discount) : 0;
+  const taxableAmount = serverCalc ? toSafeNumber(serverCalc.taxable_amount) : Math.max(0, subtotal - manualDiscountAmount);
+  const taxAmount = serverCalc ? toSafeNumber(serverCalc.tax_amount) : (applyGst ? Math.round((taxableAmount * gstRate) / 100) : 0);
+  const grandTotal = serverCalc ? toSafeNumber(serverCalc.grand_total) : taxableAmount + taxAmount;
 
   // Complete Checkout
   const handleCheckout = async (openWhatsApp: boolean = false) => {
@@ -882,8 +883,8 @@ export default function BillingPosPage() {
                   {cart.map((item, idx) => {
                     const calcItem = serverCalc?.items?.[idx];
                     const isComp = calcItem?.is_complimentary;
-                    const memberDisc = calcItem?.membership_discount || 0;
-                    const itemLineTotal = calcItem ? calcItem.line_total : item.unit_price * item.quantity;
+                    const memberDisc = toSafeNumber(calcItem?.membership_discount, 0);
+                    const itemLineTotal = calcItem ? toSafeNumber(calcItem.line_total) : (toSafeNumber(item.unit_price) * toSafeNumber(item.quantity, 1));
 
                     return (
                       <div
@@ -898,7 +899,7 @@ export default function BillingPosPage() {
                             {isComp ? (
                               <>
                                 <span className="line-through text-slate-400 font-normal">
-                                  {formatCurrency(item.unit_price * item.quantity)}
+                                  {formatCurrency(toSafeNumber(item.unit_price) * toSafeNumber(item.quantity, 1))}
                                 </span>
                                 <span className="bg-emerald-100 text-emerald-800 text-[10px] px-1.5 py-0.2 rounded font-bold">
                                   FREE VIP PERK

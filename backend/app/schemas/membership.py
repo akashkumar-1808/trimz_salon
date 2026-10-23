@@ -205,24 +205,25 @@ class BillCalculationItemOut(BaseModel):
     service_id: Optional[UUID] = None
     item_type: str
     name: str
-    catalogue_price: Decimal
-    unit_price: Decimal
+    catalogue_price: float
+    unit_price: float
     quantity: int
-    gross_total: Decimal
-    membership_discount: Decimal
-    manual_discount: Decimal = Decimal("0.00")
-    line_total: Decimal
+    gross_total: float
+    membership_discount: float
+    manual_discount: float = 0.0
+    line_total: float
     is_complimentary: bool = False
     benefit_id: Optional[UUID] = None
     benefit_name: Optional[str] = None
 
 class BillCalculationSummary(BaseModel):
-    subtotal: Decimal
-    total_membership_discount: Decimal
-    total_manual_discount: Decimal
-    taxable_amount: Decimal
-    tax_percentage: Decimal
-    tax_amount: Decimal
-    grand_total: Decimal
+    subtotal: float
+    total_membership_discount: float
+    total_manual_discount: float
+    taxable_amount: float
+    tax_percentage: float
+    tax_amount: float
+    grand_total: float
     membership_applied: Optional[Dict[str, Any]] = None
     items: List[BillCalculationItemOut]
+

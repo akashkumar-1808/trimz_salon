@@ -8,7 +8,7 @@ import {
   Calendar, Phone, CreditCard, ChevronRight, Eye, UserCheck, 
   Clock, History, CheckCircle2, XCircle, Tag, ArrowUpRight
 } from 'lucide-react';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, toSafeNumber } from '@/lib/utils';
 import { api } from '@/lib/api';
 import { MembershipPlan, CustomerMembership, MembershipUsageLedger } from '@/lib/types';
 
@@ -991,7 +991,7 @@ export default function MembershipsPage() {
                           <div className="text-[11px] text-slate-400">{new Date(u.created_at).toLocaleString()}</div>
                         </div>
                         <div className="text-right font-semibold text-emerald-600">
-                          -₹{Number(u.discount_applied).toFixed(2)}
+                          -₹{toSafeNumber(u.discount_applied, 0).toFixed(2)}
                         </div>
                       </div>
                     ))}

@@ -45,21 +45,21 @@ class SaleItemOut(BaseModel):
     id: UUID
     item_type: str
     service_name_snapshot: str
-    unit_price_snapshot: Decimal
+    unit_price_snapshot: float
     quantity: int
-    discount_amount: Decimal
-    tax_amount: Decimal
-    total_price: Decimal
+    discount_amount: float
+    tax_amount: float
+    total_price: float
     is_complimentary: bool = False
     membership_benefit_id: Optional[UUID] = None
-    membership_discount_amount: Decimal = Decimal("0.00")
+    membership_discount_amount: float = 0.0
 
     class Config:
         from_attributes = True
 
 class PaymentOut(BaseModel):
     id: UUID
-    amount: Decimal
+    amount: float
     payment_method: str
     payment_provider: Optional[str]
     status: str
@@ -74,10 +74,10 @@ class InvoiceOut(BaseModel):
     sale_id: Optional[UUID] = None
     invoice_number: str
     status: str
-    subtotal: Decimal
-    discount_amount: Decimal
-    tax_amount: Decimal
-    total_amount: Decimal
+    subtotal: float
+    discount_amount: float
+    tax_amount: float
+    total_amount: float
     currency: str
     pdf_url: Optional[str] = None
     image_url: Optional[str] = None
@@ -105,14 +105,14 @@ class SaleOut(BaseModel):
     customer_id: UUID
     customer_name: Optional[str] = None
     customer_phone: Optional[str] = None
-    subtotal: Decimal
-    discount_amount: Decimal
+    subtotal: float
+    discount_amount: float
     discount_reason: Optional[str]
-    tax_amount: Decimal
-    tax_percentage: Decimal
-    total_amount: Decimal
+    tax_amount: float
+    tax_percentage: float
+    total_amount: float
     customer_membership_id: Optional[UUID] = None
-    membership_discount_amount: Optional[Decimal] = Decimal("0.00")
+    membership_discount_amount: Optional[float] = 0.0
     membership_snapshot: Optional[Any] = None
     staff_id: Optional[UUID] = None
     staff_name: Optional[str] = None

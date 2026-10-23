@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency, formatDate, toSafeNumber } from '@/lib/utils';
 import { api } from '@/lib/api';
 import { 
   Printer, 
@@ -290,7 +290,7 @@ export default function ReceiptModal({ receipt, isOpen, onClose }: ReceiptModalP
                         )}
                       </div>
                       <span className="font-mono font-bold text-gray-900">
-                        {formatCurrency(item.quantity * item.unit_price)}
+                        {formatCurrency(toSafeNumber(item.quantity, 1) * toSafeNumber(item.unit_price, 0))}
                       </span>
                     </div>
                   ))}
@@ -394,17 +394,21 @@ export default function ReceiptModal({ receipt, isOpen, onClose }: ReceiptModalP
                   <span>AMT</span>
                 </div>
                 <div className="pt-1 space-y-1">
-                  {receipt.items?.map((item: any, idx: number) => (
-                    <div key={idx} className="flex justify-between text-[11px]">
-                      <div className="truncate max-w-[140px] font-semibold">{item.service_name}</div>
-                      <div className="text-gray-600">
-                        {item.quantity} x {item.unit_price}
+                  {receipt.items?.map((item: any, idx: number) => {
+                    const safeQty = toSafeNumber(item.quantity, 1);
+                    const safePrice = toSafeNumber(item.unit_price, 0);
+                    return (
+                      <div key={idx} className="flex justify-between text-[11px]">
+                        <div className="truncate max-w-[140px] font-semibold">{item.service_name}</div>
+                        <div className="text-gray-600">
+                          {safeQty} x {safePrice}
+                        </div>
+                        <div className="font-bold">
+                          {(safeQty * safePrice).toFixed(2)}
+                        </div>
                       </div>
-                      <div className="font-bold">
-                        {(item.quantity * item.unit_price).toFixed(2)}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 

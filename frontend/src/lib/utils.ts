@@ -1,10 +1,17 @@
-export function formatCurrency(amount: number): string {
+export function toSafeNumber(val: any, fallback: number = 0): number {
+  if (val === null || val === undefined || val === '') return fallback;
+  const num = typeof val === 'number' ? val : Number(val);
+  return isNaN(num) ? fallback : num;
+}
+
+export function formatCurrency(amount: number | string | null | undefined): string {
+  const safe = toSafeNumber(amount, 0);
   return new Intl.NumberFormat('en-IN', {
     style: 'currency',
     currency: 'INR',
     maximumFractionDigits: 2,
     minimumFractionDigits: 0,
-  }).format(amount);
+  }).format(safe);
 }
 
 export function formatDate(dateString: string): string {
