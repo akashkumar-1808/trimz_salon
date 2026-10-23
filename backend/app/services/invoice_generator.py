@@ -77,7 +77,7 @@ def generate_invoice_png(
     # 3. Header Information
     # Line 1: Underline Y=255 -> text Y=230
     draw.text((435, 230), str(invoice_number), fill=c_black, font=font_bold)
-    stylist = stylist_name or "Harshith & Team"
+    stylist = stylist_name or "Team Member"
     draw.text((805, 230), stylist[:18], fill=c_black, font=font_regular)
 
     # Line 2: Underline Y=297 -> text Y=272

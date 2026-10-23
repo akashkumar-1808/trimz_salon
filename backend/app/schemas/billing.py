@@ -29,6 +29,7 @@ class CheckoutRequest(BaseModel):
     discount_reason: Optional[str] = None
     apply_tax: bool = True
     payments: List[PaymentIn]
+    staff_id: Optional[UUID] = None
     staff_name: Optional[str] = None
     notes: Optional[str] = None
     send_whatsapp: bool = True
@@ -84,6 +85,8 @@ class InvoiceOut(BaseModel):
     public_invoice_url: Optional[str] = None
     customer_name: Optional[str] = None
     customer_phone: Optional[str] = None
+    staff_id: Optional[UUID] = None
+    staff_name: Optional[str] = None
     created_at: datetime
 
     class Config:
@@ -111,7 +114,8 @@ class SaleOut(BaseModel):
     customer_membership_id: Optional[UUID] = None
     membership_discount_amount: Optional[Decimal] = Decimal("0.00")
     membership_snapshot: Optional[Any] = None
-    staff_name: Optional[str]
+    staff_id: Optional[UUID] = None
+    staff_name: Optional[str] = None
     notes: Optional[str]
     created_at: datetime
     items: List[SaleItemOut] = []

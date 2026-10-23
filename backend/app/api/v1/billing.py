@@ -327,7 +327,31 @@ async def checkout(
 
     customer_membership_id = UUID(membership_applied["id"]) if membership_applied and membership_applied.get("id") else None
 
-    # 4. Generate Sequential Numbers
+    # 4. Stylist / Staff Lookup and Validation against Business
+    stylist_user = None
+    if data.staff_id:
+        st_res = await db.execute(
+            select(User).where(
+                User.id == data.staff_id,
+                User.business_id == current_user.business_id
+            )
+        )
+        stylist_user = st_res.scalar_one_or_none()
+        if not stylist_user:
+            raise HTTPException(status_code=400, detail="Selected stylist does not belong to this business")
+    elif data.staff_name and data.staff_name.strip():
+        st_res = await db.execute(
+            select(User).where(
+                User.business_id == current_user.business_id,
+                func.lower(User.name) == data.staff_name.strip().lower()
+            )
+        )
+        stylist_user = st_res.scalars().first()
+
+    final_staff_id = stylist_user.id if stylist_user else None
+    final_staff_name = stylist_user.name if stylist_user else (data.staff_name.strip() if data.staff_name else None)
+
+    # 5. Generate Sequential Numbers
     now_utc = datetime.now(timezone.utc)
     date_str = now_utc.strftime("%Y%m%d")
     month_str = now_utc.strftime("%Y%m")
@@ -341,12 +365,14 @@ async def checkout(
     sale_number = f"{business.bill_prefix}-{date_str}-{total_sales_count:04d}"
     invoice_number = f"TRIMZ-{month_str}-{total_sales_count:04d}"
 
-    # 5. Create Authoritative Sale with Membership Snapshot
+    # 6. Create Authoritative Sale with Membership Snapshot
     new_sale = Sale(
         business_id=current_user.business_id,
         customer_id=customer.id,
         customer_membership_id=customer_membership_id,
         operator_id=current_user.id,
+        staff_id=final_staff_id,
+        staff_name=final_staff_name,
         sale_number=sale_number,
         client_request_id=idempotency_key,
         status="COMPLETED",
@@ -358,7 +384,6 @@ async def checkout(
         tax_amount=tax_amount,
         tax_percentage=tax_percentage,
         total_amount=grand_total,
-        staff_name=data.staff_name,
         notes=data.notes
     )
     db.add(new_sale)
@@ -436,7 +461,7 @@ async def checkout(
         invoice_number=invoice_number,
         status="ISSUED",
         subtotal=subtotal,
-        discount_amount=overall_disc,
+        discount_amount=manual_discount + membership_discount,
         tax_amount=tax_amount,
         total_amount=grand_total,
         currency=business.currency
@@ -497,16 +522,21 @@ async def checkout(
 async def list_sales(
     search: Optional[str] = None,
     status: Optional[str] = None,
+    stylist_id: Optional[UUID] = None,
+    staff_id: Optional[UUID] = None,
     limit: int = 50,
     offset: int = 0,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_permission("billing.view"))
 ):
+    eff_stylist_id = stylist_id or staff_id
     stmt = (
         select(Sale)
         .where(Sale.business_id == current_user.business_id)
         .order_by(Sale.created_at.desc())
     )
+    if eff_stylist_id:
+        stmt = stmt.where(Sale.staff_id == eff_stylist_id)
     if status:
         stmt = stmt.where(Sale.status == status)
     if search:
@@ -515,7 +545,8 @@ async def list_sales(
             or_(
                 Sale.sale_number.ilike(s),
                 Customer.name.ilike(s),
-                Customer.phone.ilike(s)
+                Customer.phone.ilike(s),
+                Sale.staff_name.ilike(s)
             )
         )
     stmt = stmt.limit(limit).offset(offset)

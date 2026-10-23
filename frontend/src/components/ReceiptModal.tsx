@@ -269,6 +269,10 @@ export default function ReceiptModal({ receipt, isOpen, onClose }: ReceiptModalP
                   <span className="font-bold text-gray-900">{receipt.customer_name || 'Walk-in Guest'}</span>
                 </div>
                 <div className="flex justify-between pb-2 border-b border-gray-100">
+                  <span className="text-gray-500">Stylist:</span>
+                  <span className="font-bold text-[#E60023]">{receipt.stylist || receipt.staff_name || 'Team Member'}</span>
+                </div>
+                <div className="flex justify-between pb-2 border-b border-gray-100">
                   <span className="text-gray-500">Date &amp; Time:</span>
                   <span className="font-medium text-gray-800">{formatDate(receipt.created_at)}</span>
                 </div>
@@ -276,8 +280,15 @@ export default function ReceiptModal({ receipt, isOpen, onClose }: ReceiptModalP
                 <div className="space-y-1.5 pt-1">
                   <div className="text-[11px] font-bold text-gray-700 uppercase tracking-wider">Services Rendered</div>
                   {receipt.items?.map((item: any, idx: number) => (
-                    <div key={idx} className="flex justify-between text-xs py-1 px-2 rounded-lg bg-gray-50">
-                      <span className="font-medium text-gray-800">{item.service_name} (x{item.quantity})</span>
+                    <div key={idx} className="flex justify-between text-xs py-1.5 px-2 rounded-lg bg-gray-50">
+                      <div>
+                        <span className="font-medium text-gray-800">{item.service_name} (x{item.quantity})</span>
+                        {(item.stylist || receipt.stylist || receipt.staff_name) && (
+                          <span className="block text-[10px] text-gray-500">
+                            Stylist: {item.stylist || receipt.stylist || receipt.staff_name}
+                          </span>
+                        )}
+                      </div>
                       <span className="font-mono font-bold text-gray-900">
                         {formatCurrency(item.quantity * item.unit_price)}
                       </span>
@@ -370,6 +381,10 @@ export default function ReceiptModal({ receipt, isOpen, onClose }: ReceiptModalP
                     <span>{receipt.customer_phone}</span>
                   </div>
                 )}
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Stylist:</span>
+                  <span className="font-bold">{receipt.stylist || receipt.staff_name || 'Team Member'}</span>
+                </div>
               </div>
 
               <div className="border-b border-dashed border-gray-400 pb-2 mb-2">

@@ -243,13 +243,15 @@ def format_public_invoice_response(
         instagram="@trimzunisexsalon"
     )
 
+    stylist_display = (sale.staff_name if sale and sale.staff_name else None) or (sale.operator.name if sale and sale.operator else "Team Member")
+
     return PublicInvoiceResponse(
         invoice_number=invoice.invoice_number,
         sale_number=sale.sale_number if sale else None,
         date=date_str,
         time=time_str,
         created_at_iso=created_dt.isoformat(),
-        stylist=sale.staff_name if sale and sale.staff_name else "Team Member",
+        stylist=stylist_display,
         customer_name=customer.name if customer and customer.name else "Valued Guest",
         customer_phone_masked=mask_phone_number(customer.phone) if customer else None,
         items=items_out,
@@ -257,7 +259,7 @@ def format_public_invoice_response(
         discount_amount=float(invoice.discount_amount),
         tax_amount=float(invoice.tax_amount),
         tax_name=business.tax_name or "GST",
-        tax_percentage=float(sale.tax_percentage if sale else 0.0),
+        tax_percentage=float(sale.tax_percentage or 0.0) if sale else 0.0,
         total_amount=total_amount,
         currency=invoice.currency or "INR",
         status=invoice.status or "ISSUED",

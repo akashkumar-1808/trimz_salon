@@ -42,6 +42,17 @@ class Invoice(Base):
     def customer_phone(self):
         return self.sale.customer.phone if self.sale and self.sale.customer else None
 
+    @property
+    def staff_id(self):
+        return self.sale.staff_id if self.sale else None
+
+    @property
+    def staff_name(self):
+        if not self.sale:
+            return None
+        return self.sale.staff_name or (self.sale.operator.name if self.sale.operator else None)
+
+
 
 class PublicInvoiceToken(Base):
     __tablename__ = "public_invoice_tokens"

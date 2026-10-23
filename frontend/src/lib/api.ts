@@ -288,16 +288,20 @@ class ApiClient {
   }
 
   // Reports
-  async getSalesSummary(startDate?: string, endDate?: string) {
+  async getSalesSummary(startDate?: string, endDate?: string, stylistId?: string) {
     const params = new URLSearchParams();
     if (startDate) params.append('start_date', startDate);
     if (endDate) params.append('end_date', endDate);
+    if (stylistId) params.append('stylist_id', stylistId);
     const qs = params.toString() ? `?${params.toString()}` : '';
     return this.request<any>(`/reports/sales-summary${qs}`);
   }
 
-  async getDailyClosing(date?: string) {
-    const qs = date ? `?date=${encodeURIComponent(date)}` : '';
+  async getDailyClosing(date?: string, stylistId?: string) {
+    const params = new URLSearchParams();
+    if (date) params.append('date', date);
+    if (stylistId) params.append('stylist_id', stylistId);
+    const qs = params.toString() ? `?${params.toString()}` : '';
     return this.request<any>(`/reports/daily-closing${qs}`);
   }
 
@@ -305,13 +309,14 @@ class ApiClient {
     return this.request<any>(`/reports/customer-history/${customerId}`);
   }
 
-  async exportSalesCsv(startDate?: string, endDate?: string): Promise<Blob> {
+  async exportSalesCsv(startDate?: string, endDate?: string, stylistId?: string): Promise<Blob> {
     const token = this.getToken();
     const headers: Record<string, string> = {};
     if (token) headers['Authorization'] = `Bearer ${token}`;
     const params = new URLSearchParams();
     if (startDate) params.append('start_date', startDate);
     if (endDate) params.append('end_date', endDate);
+    if (stylistId) params.append('stylist_id', stylistId);
     const qs = params.toString() ? `?${params.toString()}` : '';
 
     const res = await fetch(this.buildUrl(`/reports/export/sales-csv${qs}`), {
@@ -324,13 +329,14 @@ class ApiClient {
     return res.blob();
   }
 
-  async exportSalesPdf(startDate?: string, endDate?: string): Promise<Blob> {
+  async exportSalesPdf(startDate?: string, endDate?: string, stylistId?: string): Promise<Blob> {
     const token = this.getToken();
     const headers: Record<string, string> = {};
     if (token) headers['Authorization'] = `Bearer ${token}`;
     const params = new URLSearchParams();
     if (startDate) params.append('start_date', startDate);
     if (endDate) params.append('end_date', endDate);
+    if (stylistId) params.append('stylist_id', stylistId);
     const qs = params.toString() ? `?${params.toString()}` : '';
 
     const res = await fetch(this.buildUrl(`/reports/export/sales-pdf${qs}`), {
@@ -344,8 +350,12 @@ class ApiClient {
   }
 
   // Invoices
-  async getInvoices(limit = 50) {
-    return this.request<any[]>(`/invoices/?limit=${limit}`);
+  async getInvoices(limit = 100, stylistId?: string, search?: string) {
+    const params = new URLSearchParams();
+    params.append('limit', String(limit));
+    if (stylistId) params.append('stylist_id', stylistId);
+    if (search) params.append('search', search);
+    return this.request<any[]>(`/invoices?${params.toString()}`);
   }
 
   async getInvoiceReceipt(invoiceId: string) {

@@ -30,12 +30,15 @@ class Sale(Base):
     tax_amount = Column(Numeric(12, 2), nullable=False, default=0.00)
     tax_percentage = Column(Numeric(5, 2), nullable=False, default=0.00)
     total_amount = Column(Numeric(12, 2), nullable=False, default=0.00)
+    staff_id = Column(GUID, ForeignKey("profiles.id", ondelete="SET NULL"), nullable=True, index=True)
+    staff_name = Column(String(120), nullable=True)
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True)
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     customer = relationship("Customer", lazy="selectin")
-    operator = relationship("Profile", lazy="selectin")
+    operator = relationship("Profile", foreign_keys=[operator_id], lazy="selectin")
+    staff = relationship("Profile", foreign_keys=[staff_id], lazy="selectin")
     items = relationship("SaleItem", back_populates="sale", cascade="all, delete-orphan", lazy="selectin")
     payments = relationship("Payment", back_populates="sale", cascade="all, delete-orphan", lazy="selectin")
     invoice = relationship("Invoice", back_populates="sale", uselist=False, lazy="selectin")
@@ -50,12 +53,8 @@ class Sale(Base):
         return self.customer.phone if self.customer else None
 
     @property
-    def staff_name(self):
-        return getattr(self, "_staff_name", None) or (self.operator.name if self.operator else None)
-
-    @staff_name.setter
-    def staff_name(self, value):
-        self._staff_name = value
+    def effective_staff_name(self):
+        return self.staff_name or (self.staff.name if self.staff else (self.operator.name if self.operator else None))
 
 class SaleItem(Base):
     __tablename__ = "sale_items"

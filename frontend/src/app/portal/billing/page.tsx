@@ -366,6 +366,10 @@ export default function BillingPosPage() {
       if (!proceed) return;
     }
 
+    const selectedStaffObj = staffMembers.find((emp) => emp.id === selectedStaff || emp.name === selectedStaff);
+    const chosenStaffId = selectedStaffObj?.id || (selectedStaff || undefined);
+    const chosenStaffName = selectedStaffObj?.name || (selectedStaff || undefined);
+
     setIsSubmitting(true);
     try {
       const payload = {
@@ -377,7 +381,8 @@ export default function BillingPosPage() {
         apply_tax: applyGst,
         open_whatsapp: openWhatsApp,
         send_whatsapp: openWhatsApp,
-        staff_name: selectedStaff || undefined,
+        staff_id: chosenStaffId,
+        staff_name: chosenStaffName,
         payments: [
           {
             payment_method: paymentMethod,
@@ -409,6 +414,9 @@ export default function BillingPosPage() {
           sale_number: sale.sale_number,
           customer_name: sale.customer_name || name,
           customer_phone: sale.customer_phone || phone,
+          stylist: sale.staff_name || chosenStaffName || undefined,
+          staff_name: sale.staff_name || chosenStaffName || undefined,
+          staff_id: sale.staff_id || chosenStaffId || undefined,
           created_at: sale.created_at,
           image_url: inv?.image_url,
           whatsapp_url: result.whatsapp_url || result.whatsapp_click_to_chat?.url,
@@ -418,6 +426,7 @@ export default function BillingPosPage() {
           public_invoice_token: result.public_invoice_token,
           items: (sale.items || []).map((it: any) => ({
             service_name: it.service_name_snapshot,
+            stylist: sale.staff_name || chosenStaffName,
             quantity: it.quantity,
             unit_price: Number(it.unit_price_snapshot),
           })),
@@ -770,7 +779,7 @@ export default function BillingPosPage() {
                 >
                   <option value="">Select staff member</option>
                   {staffMembers.map((emp) => (
-                    <option key={emp.id} value={emp.name}>
+                    <option key={emp.id} value={emp.id}>
                       {emp.name} ({emp.roles?.[0]?.name || 'Stylist'})
                     </option>
                   ))}

@@ -13,6 +13,13 @@ class DailySalesBreakdown(BaseModel):
     card_amount: Decimal
     payment_breakdown: Optional[str] = None
 
+class StylistSalesBreakdown(BaseModel):
+    stylist_id: Optional[UUID] = None
+    stylist_name: str
+    orders_count: int
+    total_revenue: Decimal
+    payment_methods: Dict[str, Decimal] = {}
+
 class SalesSummaryReport(BaseModel):
     start_date: str
     end_date: str
@@ -25,6 +32,9 @@ class SalesSummaryReport(BaseModel):
     net_revenue: Decimal
     payment_methods: Dict[str, Decimal]
     daily_trend: List[DailySalesBreakdown]
+    stylist_id: Optional[UUID] = None
+    stylist_name: Optional[str] = None
+    stylist_breakdown: List[StylistSalesBreakdown] = []
 
 class TopServiceReport(BaseModel):
     name: str
@@ -45,6 +55,9 @@ class DailyClosingReport(BaseModel):
     total_tax: Decimal
     top_services: List[TopServiceReport]
     closing_notes: Optional[str] = None
+    stylist_id: Optional[UUID] = None
+    stylist_name: Optional[str] = None
+    stylist_breakdown: List[StylistSalesBreakdown] = []
 
 class CustomerSaleItemHistory(BaseModel):
     service_name: str

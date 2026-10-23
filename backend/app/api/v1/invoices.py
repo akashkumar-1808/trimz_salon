@@ -23,19 +23,33 @@ router = APIRouter(prefix="/invoices", tags=["Invoicing"])
 @router.get("", response_model=List[InvoiceOut])
 async def list_invoices(
     search: Optional[str] = None,
-    limit: int = 50,
+    stylist_id: Optional[UUID] = None,
+    staff_id: Optional[UUID] = None,
+    limit: int = 100,
     offset: int = 0,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_permission("billing.view"))
 ):
+    eff_stylist_id = stylist_id or staff_id
     stmt = (
         select(Invoice)
+        .join(Sale, Invoice.sale_id == Sale.id)
         .where(Invoice.business_id == current_user.business_id)
         .order_by(Invoice.created_at.desc())
     )
+    if eff_stylist_id:
+        stmt = stmt.where(Sale.staff_id == eff_stylist_id)
     if search:
         s = f"%{search.strip()}%"
-        stmt = stmt.where(Invoice.invoice_number.ilike(s))
+        stmt = stmt.join(Customer, Sale.customer_id == Customer.id, isouter=True).where(
+            or_(
+                Invoice.invoice_number.ilike(s),
+                Sale.sale_number.ilike(s),
+                Customer.name.ilike(s),
+                Customer.phone.ilike(s),
+                Sale.staff_name.ilike(s)
+            )
+        )
     stmt = stmt.limit(limit).offset(offset)
     result = await db.execute(stmt)
     return result.scalars().all()
@@ -101,11 +115,13 @@ async def get_invoice_receipt(
     business = biz_res.scalar_one_or_none()
 
     customer = sale.customer
+    stylist_name = sale.staff_name or (sale.operator.name if sale.operator else "Team Member")
     receipt_text = generate_thermal_receipt_text(business, sale, inv, customer)
 
     items = [
         {
             "service_name": it.service_name_snapshot,
+            "stylist": stylist_name,
             "quantity": it.quantity,
             "unit_price": float(it.unit_price_snapshot)
         }
@@ -128,6 +144,9 @@ async def get_invoice_receipt(
         "created_at": inv.created_at,
         "customer_name": customer.name if customer else "Walk-in Guest",
         "customer_phone": customer.phone if customer else "",
+        "stylist": stylist_name,
+        "staff_name": stylist_name,
+        "staff_id": sale.staff_id,
         "items": items,
         "subtotal": float(inv.subtotal),
         "discount_amount": float(inv.discount_amount),

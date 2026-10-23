@@ -16,6 +16,7 @@ from app.models.auth import User
 from app.schemas.report import (
     SalesSummaryReport,
     DailySalesBreakdown,
+    StylistSalesBreakdown,
     DailyClosingReport,
     TopServiceReport,
     CustomerPurchaseHistoryReport,
@@ -52,13 +53,105 @@ def parse_date_range(start_date_str: Optional[str], end_date_str: Optional[str])
     end_dt = datetime.combine(end_d, time.max, tzinfo=timezone.utc)
     return start_d, end_d, start_dt, end_dt
 
+async def compute_stylist_breakdown(
+    db: AsyncSession,
+    business_id: UUID,
+    all_period_sales: List[Sale]
+) -> List[StylistSalesBreakdown]:
+    """
+    Computes exact order count, completed sales total, and payment method
+    breakdown for each registered staff member in the authenticated business.
+    Excludes cancelled/refunded sales to prevent double-counting.
+    """
+    users_res = await db.execute(
+        select(User).where(User.business_id == business_id).order_by(User.name.asc())
+    )
+    users = users_res.scalars().all()
+
+    breakdown_map: Dict[UUID, Dict[str, Any]] = {}
+    name_to_id: Dict[str, UUID] = {}
+    for u in users:
+        breakdown_map[u.id] = {
+            "stylist_id": u.id,
+            "stylist_name": u.name,
+            "orders_count": 0,
+            "total_revenue": Decimal("0.00"),
+            "payment_methods": {
+                "CASH": Decimal("0.00"),
+                "UPI": Decimal("0.00"),
+                "CARD": Decimal("0.00"),
+                "OTHER": Decimal("0.00"),
+            }
+        }
+        if u.name:
+            name_to_id[u.name.strip().lower()] = u.id
+
+    unattributed = {
+        "stylist_id": None,
+        "stylist_name": "Unassigned / General Desk",
+        "orders_count": 0,
+        "total_revenue": Decimal("0.00"),
+        "payment_methods": {
+            "CASH": Decimal("0.00"),
+            "UPI": Decimal("0.00"),
+            "CARD": Decimal("0.00"),
+            "OTHER": Decimal("0.00"),
+        }
+    }
+
+    for s in all_period_sales:
+        if s.status == "COMPLETED":
+            target = None
+            if s.staff_id and s.staff_id in breakdown_map:
+                target = breakdown_map[s.staff_id]
+            elif s.staff_name and s.staff_name.strip().lower() in name_to_id:
+                target = breakdown_map[name_to_id[s.staff_name.strip().lower()]]
+            elif s.operator_id and s.operator_id in breakdown_map:
+                target = breakdown_map[s.operator_id]
+            else:
+                target = unattributed
+
+            target["orders_count"] += 1
+            target["total_revenue"] += s.total_amount
+
+            for p in s.payments:
+                if p.status == "SUCCESS":
+                    m = (p.payment_method or "OTHER").upper()
+                    if m in target["payment_methods"]:
+                        target["payment_methods"][m] += p.amount
+                    else:
+                        target["payment_methods"]["OTHER"] += p.amount
+
+    result = [
+        StylistSalesBreakdown(
+            stylist_id=v["stylist_id"],
+            stylist_name=v["stylist_name"],
+            orders_count=v["orders_count"],
+            total_revenue=v["total_revenue"],
+            payment_methods=v["payment_methods"]
+        )
+        for v in breakdown_map.values()
+    ]
+    if unattributed["orders_count"] > 0:
+        result.append(StylistSalesBreakdown(
+            stylist_id=None,
+            stylist_name=unattributed["stylist_name"],
+            orders_count=unattributed["orders_count"],
+            total_revenue=unattributed["total_revenue"],
+            payment_methods=unattributed["payment_methods"]
+        ))
+    return sorted(result, key=lambda x: (x.orders_count, x.total_revenue), reverse=True)
+
 @router.get("/sales-summary", response_model=SalesSummaryReport)
 async def get_sales_summary(
     start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
     end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
+    stylist_id: Optional[UUID] = Query(None, description="Filter by registered stylist ID"),
+    staff_id: Optional[UUID] = Query(None, description="Alias for stylist_id"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_permission("reports.view"))
 ):
+    eff_stylist_id = stylist_id or staff_id
     start_d, end_d, start_dt, end_dt = parse_date_range(start_date, end_date)
 
     sales_res = await db.execute(
@@ -68,7 +161,32 @@ async def get_sales_summary(
             Sale.created_at <= end_dt
         ).order_by(Sale.created_at.asc())
     )
-    sales = sales_res.scalars().all()
+    all_sales = sales_res.scalars().all()
+
+    # Authoritative stylist-wise breakdown across all completed orders in the period
+    stylist_breakdown = await compute_stylist_breakdown(db, current_user.business_id, all_sales)
+
+    # Resolve selected stylist name if filter is requested
+    stylist_name: Optional[str] = None
+    if eff_stylist_id:
+        user_res = await db.execute(
+            select(User).where(
+                User.id == eff_stylist_id,
+                User.business_id == current_user.business_id
+            )
+        )
+        user_obj = user_res.scalar_one_or_none()
+        if user_obj:
+            stylist_name = user_obj.name
+
+    # Filter sales to active stylist if requested
+    if eff_stylist_id:
+        active_sales = [
+            s for s in all_sales
+            if s.staff_id == eff_stylist_id or (stylist_name and s.staff_name and s.staff_name.strip().lower() == stylist_name.strip().lower())
+        ]
+    else:
+        active_sales = all_sales
 
     total_revenue = Decimal("0.00")
     total_discount = Decimal("0.00")
@@ -91,7 +209,7 @@ async def get_sales_summary(
         }
         curr += timedelta(days=1)
 
-    for s in sales:
+    for s in active_sales:
         d_str = s.created_at.strftime("%Y-%m-%d") if s.created_at else start_d.strftime("%Y-%m-%d")
         if s.status == "COMPLETED":
             completed_bills += 1
@@ -137,22 +255,28 @@ async def get_sales_summary(
         start_date=start_d.strftime("%Y-%m-%d"),
         end_date=end_d.strftime("%Y-%m-%d"),
         total_revenue=total_revenue,
-        total_bills=len(sales),
+        total_bills=len(active_sales),
         completed_bills=completed_bills,
         cancelled_bills=cancelled_bills,
         total_discount=total_discount,
         total_tax=total_tax,
         net_revenue=total_revenue - total_tax,
         payment_methods=payment_methods,
-        daily_trend=daily_trend
+        daily_trend=daily_trend,
+        stylist_id=eff_stylist_id,
+        stylist_name=stylist_name,
+        stylist_breakdown=stylist_breakdown
     )
 
 @router.get("/daily-closing", response_model=DailyClosingReport)
 async def get_daily_closing(
     date_str: Optional[str] = Query(None, alias="date", description="Target date (YYYY-MM-DD), defaults to today"),
+    stylist_id: Optional[UUID] = Query(None, description="Filter by registered stylist ID"),
+    staff_id: Optional[UUID] = Query(None, description="Alias for stylist_id"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_permission("reports.view"))
 ):
+    eff_stylist_id = stylist_id or staff_id
     if date_str:
         try:
             target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
@@ -171,7 +295,30 @@ async def get_daily_closing(
             Sale.created_at <= end_dt
         ).order_by(Sale.created_at.asc())
     )
-    sales = sales_res.scalars().all()
+    all_sales = sales_res.scalars().all()
+
+    # Stylist-wise breakdown for daily closing
+    stylist_breakdown = await compute_stylist_breakdown(db, current_user.business_id, all_sales)
+
+    stylist_name: Optional[str] = None
+    if eff_stylist_id:
+        user_res = await db.execute(
+            select(User).where(
+                User.id == eff_stylist_id,
+                User.business_id == current_user.business_id
+            )
+        )
+        user_obj = user_res.scalar_one_or_none()
+        if user_obj:
+            stylist_name = user_obj.name
+
+    if eff_stylist_id:
+        active_sales = [
+            s for s in all_sales
+            if s.staff_id == eff_stylist_id or (stylist_name and s.staff_name and s.staff_name.strip().lower() == stylist_name.strip().lower())
+        ]
+    else:
+        active_sales = all_sales
 
     total_revenue = Decimal("0.00")
     total_discount = Decimal("0.00")
@@ -185,7 +332,7 @@ async def get_daily_closing(
 
     service_counts: Dict[str, Dict] = {}
 
-    for s in sales:
+    for s in active_sales:
         if s.status == "COMPLETED":
             completed_bills += 1
             total_revenue += s.total_amount
@@ -227,7 +374,7 @@ async def get_daily_closing(
     return DailyClosingReport(
         closing_date=target_date.strftime("%Y-%m-%d"),
         total_revenue=total_revenue,
-        total_bills=len(sales),
+        total_bills=len(active_sales),
         completed_bills=completed_bills,
         cancelled_bills=cancelled_bills,
         cash_total=cash_total,
@@ -236,7 +383,10 @@ async def get_daily_closing(
         other_total=other_total,
         total_discount=total_discount,
         total_tax=total_tax,
-        top_services=top_services
+        top_services=top_services,
+        stylist_id=eff_stylist_id,
+        stylist_name=stylist_name,
+        stylist_breakdown=stylist_breakdown
     )
 
 @router.get("/customer-history/{customer_id}", response_model=CustomerPurchaseHistoryReport)
@@ -302,19 +452,23 @@ async def get_daily_sales_report_data(
     start_d: date,
     end_d: date,
     start_dt: datetime,
-    end_dt: datetime
+    end_dt: datetime,
+    stylist_id: Optional[UUID] = None
 ) -> Dict[str, Any]:
     """
     Authoritative aggregation of daily sales and payments across the applied date range.
     Ensures complete reconciliation between daily table rows and overall period summary totals.
     """
-    sales_res = await db.execute(
-        select(Sale).where(
-            Sale.business_id == business_id,
-            Sale.created_at >= start_dt,
-            Sale.created_at <= end_dt
-        ).order_by(Sale.created_at.asc())
+    stmt = select(Sale).where(
+        Sale.business_id == business_id,
+        Sale.created_at >= start_dt,
+        Sale.created_at <= end_dt
     )
+    if stylist_id:
+        stmt = stmt.where(Sale.staff_id == stylist_id)
+    stmt = stmt.order_by(Sale.created_at.asc())
+
+    sales_res = await db.execute(stmt)
     sales = sales_res.scalars().all()
 
     # Pre-populate all days in the applied filter range
@@ -464,6 +618,8 @@ async def export_sales_report(
     to_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
     start_date: Optional[str] = Query(None, description="Alias for from_date"),
     end_date: Optional[str] = Query(None, description="Alias for to_date"),
+    stylist_id: Optional[UUID] = Query(None, description="Filter by registered stylist ID"),
+    staff_id: Optional[UUID] = Query(None, description="Alias for stylist_id"),
     format: str = Query("pdf", description="Export format: 'pdf' or 'csv'"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_permission("reports.export"))
@@ -472,6 +628,7 @@ async def export_sales_report(
     Exports the currently applied filter date range as a PDF or CSV report.
     Reconciles daily sales counts, revenue totals, and payment breakdowns.
     """
+    eff_stylist_id = stylist_id or staff_id
     eff_start = from_date or start_date
     eff_end = to_date or end_date
     start_d, end_d, start_dt, end_dt = parse_date_range(eff_start, eff_end)
@@ -482,7 +639,8 @@ async def export_sales_report(
         start_d=start_d,
         end_d=end_d,
         start_dt=start_dt,
-        end_dt=end_dt
+        end_dt=end_dt,
+        stylist_id=eff_stylist_id
     )
 
     if not report_data["has_data"]:
@@ -535,6 +693,8 @@ async def export_sales_csv(
     end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
     from_date: Optional[str] = Query(None, description="Alias for start_date"),
     to_date: Optional[str] = Query(None, description="Alias for end_date"),
+    stylist_id: Optional[UUID] = Query(None, description="Filter by registered stylist ID"),
+    staff_id: Optional[UUID] = Query(None, description="Alias for stylist_id"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_permission("reports.export"))
 ):
@@ -544,6 +704,8 @@ async def export_sales_csv(
         to_date=to_date,
         start_date=start_date,
         end_date=end_date,
+        stylist_id=stylist_id,
+        staff_id=staff_id,
         format="csv",
         db=db,
         current_user=current_user
@@ -556,6 +718,8 @@ async def export_sales_pdf(
     end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
     from_date: Optional[str] = Query(None, description="Alias for start_date"),
     to_date: Optional[str] = Query(None, description="Alias for end_date"),
+    stylist_id: Optional[UUID] = Query(None, description="Filter by registered stylist ID"),
+    staff_id: Optional[UUID] = Query(None, description="Alias for stylist_id"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_permission("reports.export"))
 ):
@@ -565,6 +729,8 @@ async def export_sales_pdf(
         to_date=to_date,
         start_date=start_date,
         end_date=end_date,
+        stylist_id=stylist_id,
+        staff_id=staff_id,
         format="pdf",
         db=db,
         current_user=current_user

@@ -21,15 +21,20 @@ import {
   Loader2,
   Search,
   ArrowDownToLine,
-  Layers
+  Layers,
+  UserCheck
 } from 'lucide-react';
 
 export default function ReportsPage() {
   const { hasPermission } = useAuth();
   const [activeTab, setActiveTab] = useState<'daily' | 'summary' | 'customer'>('daily');
 
+  // Staff members for stylist filter
+  const [staffList, setStaffList] = useState<any[]>([]);
+
   // Daily Closing State
   const [dailyDate, setDailyDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [dailyStylist, setDailyStylist] = useState<string>('');
   const [dailyData, setDailyData] = useState<any>(null);
   const [loadingDaily, setLoadingDaily] = useState(false);
 
@@ -40,20 +45,21 @@ export default function ReportsPage() {
     return d.toISOString().split('T')[0];
   });
   const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [selectedStylist, setSelectedStylist] = useState<string>('');
 
-  // CRITICAL: Applied filter date range (Single Source of Truth for report data and both exports)
+  // CRITICAL: Applied filter state (Single Source of Truth for report data and both exports)
   const [appliedStartDate, setAppliedStartDate] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() - 29);
     return d.toISOString().split('T')[0];
   });
   const [appliedEndDate, setAppliedEndDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [appliedStylist, setAppliedStylist] = useState<string>('');
 
   const [summaryData, setSummaryData] = useState<any>(null);
   const [loadingSummary, setLoadingSummary] = useState(false);
   const [exportingCsv, setExportingCsv] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
-  const [exportNotice, setExportNotice] = useState<string | null>(null);
 
   // Customer History State
   const [customerSearch, setCustomerSearch] = useState('');
@@ -62,11 +68,24 @@ export default function ReportsPage() {
   const [customerHistory, setCustomerHistory] = useState<any>(null);
   const [loadingCustomerHistory, setLoadingCustomerHistory] = useState(false);
 
+  // Load staff members on mount
+  useEffect(() => {
+    const loadStaff = async () => {
+      try {
+        const emps = await api.getEmployees();
+        setStaffList(emps || []);
+      } catch (err) {
+        console.error('Failed to load employees for reports filter:', err);
+      }
+    };
+    loadStaff();
+  }, []);
+
   // Fetch Daily Closing
-  const fetchDailyClosing = async (date: string) => {
+  const fetchDailyClosing = async (date: string, stylistId?: string) => {
     setLoadingDaily(true);
     try {
-      const data = await api.getDailyClosing(date);
+      const data = await api.getDailyClosing(date, stylistId || undefined);
       setDailyData(data);
     } catch (err: any) {
       console.error('Failed to load daily closing:', err);
@@ -75,15 +94,15 @@ export default function ReportsPage() {
     }
   };
 
-  // Fetch Sales Summary (updates applied range state)
-  const fetchSalesSummary = async (s: string, e: string) => {
+  // Fetch Sales Summary (updates applied range & stylist state)
+  const fetchSalesSummary = async (s: string, e: string, stylistId?: string) => {
     setLoadingSummary(true);
-    setExportNotice(null);
     try {
-      const data = await api.getSalesSummary(s, e);
+      const data = await api.getSalesSummary(s, e, stylistId || undefined);
       setSummaryData(data);
       setAppliedStartDate(s);
       setAppliedEndDate(e);
+      setAppliedStylist(stylistId || '');
     } catch (err: any) {
       console.error('Failed to load summary report:', err);
     } finally {
@@ -96,31 +115,31 @@ export default function ReportsPage() {
       alert('From Date cannot be later than To Date');
       return;
     }
-    fetchSalesSummary(startDate, endDate);
+    fetchSalesSummary(startDate, endDate, selectedStylist);
   };
 
   useEffect(() => {
     if (activeTab === 'daily') {
-      fetchDailyClosing(dailyDate);
+      fetchDailyClosing(dailyDate, dailyStylist);
     } else if (activeTab === 'summary') {
-      fetchSalesSummary(appliedStartDate, appliedEndDate);
+      fetchSalesSummary(appliedStartDate, appliedEndDate, appliedStylist);
     }
   }, [activeTab]);
 
-  // Handle CSV Export (Strictly uses applied filter date range)
+  // Handle CSV Export (Strictly uses applied filter parameters)
   const handleExportCsv = async () => {
     if (!summaryData || summaryData.completed_bills === 0 || summaryData.total_bills === 0) {
       alert('No sales data found for the applied date range. Nothing to export.');
       return;
     }
     setExportingCsv(true);
-    setExportNotice(null);
     try {
-      const blob = await api.exportSalesCsv(appliedStartDate, appliedEndDate);
+      const blob = await api.exportSalesCsv(appliedStartDate, appliedEndDate, appliedStylist || undefined);
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `trimz-daily-sales-${appliedStartDate}-to-${appliedEndDate}.csv`;
+      const stylistSuffix = appliedStylist ? `-stylist` : '';
+      a.download = `trimz-daily-sales-${appliedStartDate}-to-${appliedEndDate}${stylistSuffix}.csv`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -132,20 +151,20 @@ export default function ReportsPage() {
     }
   };
 
-  // Handle PDF Export (Strictly uses applied filter date range)
+  // Handle PDF Export (Strictly uses applied filter parameters)
   const handleExportPdf = async () => {
     if (!summaryData || summaryData.completed_bills === 0 || summaryData.total_bills === 0) {
       alert('No sales data found for the applied date range. Nothing to export.');
       return;
     }
     setExportingPdf(true);
-    setExportNotice(null);
     try {
-      const blob = await api.exportSalesPdf(appliedStartDate, appliedEndDate);
+      const blob = await api.exportSalesPdf(appliedStartDate, appliedEndDate, appliedStylist || undefined);
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `trimz-daily-sales-${appliedStartDate}-to-${appliedEndDate}.pdf`;
+      const stylistSuffix = appliedStylist ? `-stylist` : '';
+      a.download = `trimz-daily-sales-${appliedStartDate}-to-${appliedEndDate}${stylistSuffix}.pdf`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -187,6 +206,9 @@ export default function ReportsPage() {
     }
   };
 
+  const appliedStylistName = staffList.find((s) => s.id === appliedStylist)?.name;
+  const dailyStylistName = staffList.find((s) => s.id === dailyStylist)?.name;
+
   return (
     <div className="flex-1 flex flex-col min-h-screen bg-workspace-bg">
       <Topbar title="Financial Reports & Daily Closing" />
@@ -198,7 +220,7 @@ export default function ReportsPage() {
             <div className="text-[11px] font-bold uppercase tracking-widest text-text-muted">TRIMZ SALON ANALYTICS</div>
             <h1 className="font-serif text-3xl font-bold text-text-primary tracking-tight mt-0.5">Reports & Daily Closing</h1>
             <p className="text-sm text-text-secondary mt-1">
-              End-of-day register balancing, historical revenue trends, CSV exports, and customer purchase logs.
+              End-of-day register balancing, stylist attribution & order counts, historical revenue trends, and CSV exports.
             </p>
           </div>
         </div>
@@ -279,24 +301,53 @@ export default function ReportsPage() {
         {/* TAB 1: DAILY CLOSING (EOD) */}
         {activeTab === 'daily' && (
           <div className="space-y-6">
-            {/* Date Picker Bar */}
+            {/* Date & Stylist Filter Bar */}
             <div className="bg-white p-4 rounded-2xl border border-workspace-border shadow-sm flex flex-wrap items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <Calendar className="w-4 h-4 text-primary" />
-                <span className="text-xs font-semibold text-text-primary">Select Business Day:</span>
-                <input
-                  type="date"
-                  value={dailyDate}
-                  onChange={(e) => {
-                    setDailyDate(e.target.value);
-                    fetchDailyClosing(e.target.value);
-                  }}
-                  className="bg-workspace-bg border border-workspace-border rounded-xl px-3 py-1.5 text-xs text-text-primary focus:outline-none focus:border-text-primary focus:bg-white"
-                />
+              <div className="flex flex-wrap items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-primary" />
+                  <span className="text-xs font-semibold text-text-primary">Business Day:</span>
+                  <input
+                    type="date"
+                    value={dailyDate}
+                    onChange={(e) => {
+                      setDailyDate(e.target.value);
+                      fetchDailyClosing(e.target.value, dailyStylist);
+                    }}
+                    className="bg-workspace-bg border border-workspace-border rounded-xl px-3 py-1.5 text-xs text-text-primary focus:outline-none focus:border-text-primary focus:bg-white"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2 bg-workspace-bg/60 border border-workspace-border rounded-xl px-3 py-1.5">
+                  <Scissors className="w-4 h-4 text-primary shrink-0" />
+                  <span className="text-xs font-semibold text-text-secondary shrink-0">Stylist:</span>
+                  <select
+                    value={dailyStylist}
+                    onChange={(e) => {
+                      setDailyStylist(e.target.value);
+                      fetchDailyClosing(dailyDate, e.target.value);
+                    }}
+                    className="bg-transparent text-xs font-semibold text-text-primary focus:outline-none cursor-pointer"
+                  >
+                    <option value="">All Stylists</option>
+                    {staffList.map((emp) => (
+                      <option key={emp.id} value={emp.id}>
+                        {emp.name} ({emp.roles?.[0]?.name || 'Stylist'})
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
-              <span className="text-xs text-text-muted font-mono">
-                Real-time transaction settlement for {dailyDate}
-              </span>
+
+              <div className="text-xs text-text-muted font-mono flex items-center gap-2">
+                <span>Settlement for {dailyDate}</span>
+                {dailyStylistName && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 font-semibold border border-rose-200/60 text-[11px]">
+                    <UserCheck className="w-3 h-3" />
+                    {dailyStylistName}
+                  </span>
+                )}
+              </div>
             </div>
 
             {loadingDaily ? (
@@ -314,7 +365,7 @@ export default function ReportsPage() {
                       {formatCurrency(dailyData.total_revenue || 0)}
                     </h3>
                     <p className="text-[11px] text-emerald-600 font-medium mt-1">
-                      {dailyData.completed_bills} completed bill(s)
+                      {dailyData.completed_bills} completed bill(s) {dailyStylistName ? `by ${dailyStylistName}` : ''}
                     </p>
                   </div>
 
@@ -345,6 +396,63 @@ export default function ReportsPage() {
                     <p className="text-[11px] text-text-muted mt-1">Debit & Credit Cards</p>
                   </div>
                 </div>
+
+                {/* Stylist Breakdown Table for Daily Closing */}
+                {dailyData.stylist_breakdown?.length > 0 && (
+                  <div className="bg-white border border-workspace-border rounded-2xl overflow-hidden shadow-sm">
+                    <div className="p-4 border-b border-workspace-border flex items-center justify-between">
+                      <h4 className="text-sm font-semibold text-text-primary flex items-center gap-2">
+                        <Scissors className="w-4 h-4 text-primary" />
+                        <span>Daily Stylist Attribution & Orders Handled</span>
+                      </h4>
+                      <span className="text-xs text-text-muted">
+                        Total {dailyData.stylist_breakdown.reduce((sum: number, s: any) => sum + s.orders_count, 0)} completed orders today
+                      </span>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-sm border-collapse">
+                        <thead>
+                          <tr className="border-b border-workspace-border bg-workspace-bg/40 text-text-muted font-medium uppercase text-[11px] tracking-wider">
+                            <th className="p-4">Stylist</th>
+                            <th className="p-4 text-center">Orders Handled</th>
+                            <th className="p-4">Cash (₹)</th>
+                            <th className="p-4">UPI (₹)</th>
+                            <th className="p-4">Card (₹)</th>
+                            <th className="p-4 text-right">Total Revenue (₹)</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-workspace-border">
+                          {dailyData.stylist_breakdown.map((st: any) => (
+                            <tr
+                              key={st.stylist_id || st.stylist_name}
+                              className={`hover:bg-workspace-hover/50 transition-colors ${
+                                dailyStylist === st.stylist_id ? 'bg-rose-50/50' : ''
+                              }`}
+                            >
+                              <td className="p-4 font-semibold text-text-primary flex items-center gap-2">
+                                <span className="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center font-bold text-xs text-text-secondary border border-gray-200">
+                                  {st.stylist_name.charAt(0).toUpperCase()}
+                                </span>
+                                <span>{st.stylist_name}</span>
+                              </td>
+                              <td className="p-4 text-center font-mono font-bold text-text-primary">
+                                <span className="px-2.5 py-1 rounded-full bg-slate-100 text-slate-800 text-xs font-semibold">
+                                  {st.orders_count} orders
+                                </span>
+                              </td>
+                              <td className="p-4 font-mono text-emerald-600">{formatCurrency(st.payment_methods?.CASH || 0)}</td>
+                              <td className="p-4 font-mono text-blue-600">{formatCurrency(st.payment_methods?.UPI || 0)}</td>
+                              <td className="p-4 font-mono text-amber-600">{formatCurrency(st.payment_methods?.CARD || 0)}</td>
+                              <td className="p-4 text-right font-mono font-bold text-primary text-sm">
+                                {formatCurrency(st.total_revenue || 0)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
 
                 {/* Additional Stats & Top Services */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -418,7 +526,7 @@ export default function ReportsPage() {
         {/* TAB 2: SALES RANGE SUMMARY */}
         {activeTab === 'summary' && (
           <div className="space-y-6">
-            {/* Date Range Picker */}
+            {/* Date Range & Stylist Filter Picker */}
             <div className="bg-white p-4 rounded-2xl border border-workspace-border shadow-sm flex flex-wrap items-center justify-between gap-4">
               <div className="flex flex-wrap items-center gap-3">
                 <Calendar className="w-4 h-4 text-primary" />
@@ -436,6 +544,25 @@ export default function ReportsPage() {
                   onChange={(e) => setEndDate(e.target.value)}
                   className="bg-workspace-bg border border-workspace-border rounded-xl px-3 py-1.5 text-xs text-text-primary focus:outline-none focus:border-text-primary focus:bg-white"
                 />
+
+                {/* Stylist Selector */}
+                <div className="flex items-center gap-2 bg-workspace-bg/60 border border-workspace-border rounded-xl px-3 py-1.5">
+                  <Scissors className="w-4 h-4 text-primary shrink-0" />
+                  <span className="text-xs font-semibold text-text-secondary shrink-0">Stylist:</span>
+                  <select
+                    value={selectedStylist}
+                    onChange={(e) => setSelectedStylist(e.target.value)}
+                    className="bg-transparent text-xs font-semibold text-text-primary focus:outline-none cursor-pointer"
+                  >
+                    <option value="">All Stylists</option>
+                    {staffList.map((emp) => (
+                      <option key={emp.id} value={emp.id}>
+                        {emp.name} ({emp.roles?.[0]?.name || 'Stylist'})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 <button
                   type="button"
                   onClick={handleApplyFilter}
@@ -445,8 +572,15 @@ export default function ReportsPage() {
                   {loadingSummary ? 'Applying...' : 'Apply Filter'}
                 </button>
               </div>
+
               <div className="text-xs text-text-muted font-mono flex items-center gap-2">
                 <span>Applied: <strong className="text-text-primary font-semibold">{appliedStartDate} &ndash; {appliedEndDate}</strong></span>
+                {appliedStylistName && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 font-semibold border border-rose-200/60 text-[11px]">
+                    <UserCheck className="w-3 h-3" />
+                    {appliedStylistName}
+                  </span>
+                )}
                 <span>&bull;</span>
                 <span>{summaryData?.completed_bills || 0} completed bill(s)</span>
               </div>
@@ -464,8 +598,20 @@ export default function ReportsPage() {
                 </div>
                 <h3 className="font-bold text-sm text-text-primary">No Sales Recorded for Selected Period</h3>
                 <p className="text-xs text-text-muted max-w-md mx-auto">
-                  No completed transactions were found between <span className="font-mono font-semibold text-text-secondary">{appliedStartDate}</span> and <span className="font-mono font-semibold text-text-secondary">{appliedEndDate}</span>. Select a different date range or record sales at POS to generate reports.
+                  No completed transactions were found between <span className="font-mono font-semibold text-text-secondary">{appliedStartDate}</span> and <span className="font-mono font-semibold text-text-secondary">{appliedEndDate}</span>{appliedStylistName ? ` for stylist ${appliedStylistName}` : ''}. Select a different date range or stylist to generate reports.
                 </p>
+                {appliedStylist && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedStylist('');
+                      fetchSalesSummary(appliedStartDate, appliedEndDate, '');
+                    }}
+                    className="text-xs font-bold text-primary hover:underline"
+                  >
+                    Clear stylist filter
+                  </button>
+                )}
               </div>
             ) : summaryData ? (
               <>
@@ -477,7 +623,7 @@ export default function ReportsPage() {
                       {formatCurrency(summaryData.total_revenue || 0)}
                     </h3>
                     <p className="text-[11px] text-text-muted mt-1">
-                      {summaryData.completed_bills} completed sale(s)
+                      {summaryData.completed_bills} completed sale(s) {appliedStylistName ? `attributed to ${appliedStylistName}` : ''}
                     </p>
                   </div>
 
@@ -506,12 +652,79 @@ export default function ReportsPage() {
                   </div>
                 </div>
 
+                {/* Stylist Performance & Order Attribution Section */}
+                {summaryData.stylist_breakdown?.length > 0 && (
+                  <div className="bg-white border border-workspace-border rounded-2xl overflow-hidden shadow-sm">
+                    <div className="p-4 border-b border-workspace-border flex items-center justify-between">
+                      <h4 className="text-sm font-semibold text-text-primary flex items-center gap-2">
+                        <Scissors className="w-4 h-4 text-primary" />
+                        <span>Stylist Performance & Order Attribution ({appliedStartDate} to {appliedEndDate})</span>
+                      </h4>
+                      <span className="text-xs text-text-muted font-mono">
+                        {summaryData.stylist_breakdown.reduce((sum: number, s: any) => sum + s.orders_count, 0)} total attributed orders
+                      </span>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-sm border-collapse">
+                        <thead>
+                          <tr className="border-b border-workspace-border bg-workspace-bg/40 text-text-muted font-medium uppercase text-[11px] tracking-wider">
+                            <th className="p-4">Stylist</th>
+                            <th className="p-4 text-center">Orders Handled</th>
+                            <th className="p-4">Cash (₹)</th>
+                            <th className="p-4">UPI (₹)</th>
+                            <th className="p-4">Card (₹)</th>
+                            <th className="p-4 text-right">Total Revenue (₹)</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-workspace-border">
+                          {summaryData.stylist_breakdown.map((st: any) => {
+                            const isFiltered = appliedStylist === st.stylist_id;
+                            return (
+                              <tr
+                                key={st.stylist_id || st.stylist_name}
+                                className={`hover:bg-workspace-hover/50 transition-colors ${
+                                  isFiltered ? 'bg-rose-50/60 font-semibold' : ''
+                                }`}
+                              >
+                                <td className="p-4 text-text-primary flex items-center gap-2.5">
+                                  <span className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center font-bold text-xs text-text-secondary border border-gray-200">
+                                    {st.stylist_name.charAt(0).toUpperCase()}
+                                  </span>
+                                  <div>
+                                    <div className="font-semibold">{st.stylist_name}</div>
+                                    {isFiltered && (
+                                      <span className="text-[10px] text-rose-700 font-bold uppercase tracking-wider">
+                                        Active Filter
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="p-4 text-center font-mono">
+                                  <span className="inline-block px-3 py-1 rounded-full bg-slate-100 text-slate-800 text-xs font-bold">
+                                    {st.orders_count} {st.orders_count === 1 ? 'order' : 'orders'}
+                                  </span>
+                                </td>
+                                <td className="p-4 font-mono text-emerald-600">{formatCurrency(st.payment_methods?.CASH || 0)}</td>
+                                <td className="p-4 font-mono text-blue-600">{formatCurrency(st.payment_methods?.UPI || 0)}</td>
+                                <td className="p-4 font-mono text-amber-600">{formatCurrency(st.payment_methods?.CARD || 0)}</td>
+                                <td className="p-4 text-right font-mono font-bold text-primary text-sm">
+                                  {formatCurrency(st.total_revenue || 0)}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
                 {/* Daily Trend Table */}
                 <div className="bg-white border border-workspace-border rounded-2xl overflow-hidden shadow-sm">
-                  <div className="p-4 border-b border-workspace-border">
+                  <div className="p-4 border-b border-workspace-border flex items-center justify-between">
                     <h4 className="text-sm font-semibold text-text-primary flex items-center gap-2">
                       <TrendingUp className="w-4 h-4 text-primary" />
-                      <span>Daily Performance Ledger</span>
+                      <span>Daily Performance Ledger {appliedStylistName ? `(${appliedStylistName})` : ''}</span>
                     </h4>
                   </div>
                   <div className="overflow-x-auto">
@@ -643,7 +856,7 @@ export default function ReportsPage() {
                               )}
                               <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase ${
                                 sale.status === 'COMPLETED'
-                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                   ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                                   : 'bg-rose-50 text-rose-700 border border-rose-200'
                               }`}>
                                 {sale.status}
