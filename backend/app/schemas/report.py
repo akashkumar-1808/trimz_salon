@@ -41,6 +41,19 @@ class TopServiceReport(BaseModel):
     quantity: int
     revenue: float
 
+class DailyClosingBill(BaseModel):
+    sale_id: UUID
+    invoice_id: Optional[UUID] = None
+    invoice_number: Optional[str] = None
+    sale_number: str
+    customer_name: Optional[str] = None
+    customer_phone: Optional[str] = None
+    stylist_name: Optional[str] = None
+    total_amount: float
+    payment_method: str = "UPI"
+    status: str
+    created_at: str
+
 class DailyClosingReport(BaseModel):
     closing_date: str
     total_revenue: float
@@ -58,6 +71,7 @@ class DailyClosingReport(BaseModel):
     stylist_id: Optional[UUID] = None
     stylist_name: Optional[str] = None
     stylist_breakdown: List[StylistSalesBreakdown] = []
+    bills: List[DailyClosingBill] = []
 
 
 class CustomerSaleItemHistory(BaseModel):

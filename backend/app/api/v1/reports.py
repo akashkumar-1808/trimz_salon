@@ -18,6 +18,7 @@ from app.schemas.report import (
     DailySalesBreakdown,
     StylistSalesBreakdown,
     DailyClosingReport,
+    DailyClosingBill,
     TopServiceReport,
     CustomerPurchaseHistoryReport,
     CustomerSaleHistory,
@@ -371,6 +372,32 @@ async def get_daily_closing(
         for name, d in sorted_services
     ]
 
+    bills: List[DailyClosingBill] = []
+    for s in active_sales:
+        inv_id = s.invoice.id if getattr(s, "invoice", None) else None
+        inv_num = s.invoice.invoice_number if getattr(s, "invoice", None) else None
+        pm = s.payments[0].payment_method.upper() if getattr(s, "payments", None) else "OTHER"
+        c_name = s.customer.name if getattr(s, "customer", None) else "Walk-in Guest"
+        c_phone = s.customer.phone if getattr(s, "customer", None) else None
+        st_name = s.effective_staff_name or s.staff_name or "Team Member"
+        created_str = s.created_at.isoformat() if s.created_at else target_date.strftime("%Y-%m-%d")
+
+        bills.append(DailyClosingBill(
+            sale_id=s.id,
+            invoice_id=inv_id,
+            invoice_number=inv_num,
+            sale_number=s.sale_number,
+            customer_name=c_name,
+            customer_phone=c_phone,
+            stylist_name=st_name,
+            total_amount=float(s.total_amount),
+            payment_method=pm,
+            status=s.status,
+            created_at=created_str
+        ))
+    # Sort bills by newest first
+    bills.sort(key=lambda b: b.created_at, reverse=True)
+
     return DailyClosingReport(
         closing_date=target_date.strftime("%Y-%m-%d"),
         total_revenue=total_revenue,
@@ -386,7 +413,8 @@ async def get_daily_closing(
         top_services=top_services,
         stylist_id=eff_stylist_id,
         stylist_name=stylist_name,
-        stylist_breakdown=stylist_breakdown
+        stylist_breakdown=stylist_breakdown,
+        bills=bills
     )
 
 @router.get("/customer-history/{customer_id}", response_model=CustomerPurchaseHistoryReport)

@@ -362,6 +362,18 @@ class ApiClient {
     return this.request<any>(`/invoices/${invoiceId}/receipt`);
   }
 
+  async deleteInvoice(invoiceId: string) {
+    return this.request<{ success: boolean; message: string; deleted_invoice_id: string }>(`/invoices/${invoiceId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async deleteInvoiceBySale(saleId: string) {
+    return this.request<{ success: boolean; message: string; deleted_sale_id: string }>(`/invoices/by-sale/${saleId}`, {
+      method: 'DELETE',
+    });
+  }
+
   async sendInvoiceWhatsApp(invoiceId: string, forceResend = true) {
     return this.request<any>(`/invoices/${invoiceId}/whatsapp/send?force_resend=${forceResend}`, {
       method: 'POST',

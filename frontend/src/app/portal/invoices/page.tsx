@@ -5,14 +5,22 @@ import Topbar from '@/components/Topbar';
 import ReceiptModal from '@/components/ReceiptModal';
 import { api } from '@/lib/api';
 import { formatCurrency, formatDate } from '@/lib/utils';
-import { FileText, Printer, Search, Loader2, Scissors, UserCheck } from 'lucide-react';
+import { useAuth } from '@/lib/auth-context';
+import { FileText, Printer, Search, Loader2, Scissors, UserCheck, Trash2 } from 'lucide-react';
 
 export default function InvoicesPage() {
+  const { user, roles } = useAuth();
+  const isAdmin = Boolean(
+    user?.is_owner || 
+    roles?.some((r: any) => ['owner', 'admin'].includes(String(r).toLowerCase()))
+  );
+
   const [invoices, setInvoices] = useState<any[]>([]);
   const [staffList, setStaffList] = useState<any[]>([]);
   const [selectedStylist, setSelectedStylist] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // Receipt Modal
   const [activeReceipt, setActiveReceipt] = useState<any>(null);
@@ -58,6 +66,28 @@ export default function InvoicesPage() {
       alert(`Could not load receipt: ${err.message}`);
     } finally {
       setLoadingReceipt(false);
+    }
+  };
+
+  const handleDeleteInvoice = async (inv: any) => {
+    if (!isAdmin) {
+      alert('Only salon administrators and owners are authorized to delete invoices.');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Are you sure you want to delete invoice ${inv.invoice_number}?\n\nThis will permanently delete this invoice and its underlying transaction records, and recalculate customer spending, visits, and ledger totals everywhere.`
+    );
+    if (!confirmed) return;
+
+    setDeletingId(inv.id);
+    try {
+      await api.deleteInvoice(inv.id);
+      await loadInvoices(selectedStylist);
+    } catch (err: any) {
+      alert(`Failed to delete invoice: ${err.message || 'Unknown error'}`);
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -185,7 +215,7 @@ export default function InvoicesPage() {
                     <th className="p-4 text-right">Total Net</th>
                     <th className="p-4">Status</th>
                     <th className="p-4">Date</th>
-                    <th className="p-4 text-right">Receipt</th>
+                    <th className="p-4 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-workspace-border">
@@ -227,14 +257,33 @@ export default function InvoicesPage() {
                       </td>
                       <td className="p-4 text-text-secondary text-xs">{formatDate(inv.created_at)}</td>
                       <td className="p-4 text-right">
-                        <button
-                          onClick={() => openReceipt(inv.id)}
-                          disabled={loadingReceipt}
-                          className="px-3 py-1.5 rounded-xl bg-white border border-workspace-border hover:bg-workspace-hover text-text-primary font-medium text-xs inline-flex items-center gap-1.5 transition-all shadow-sm"
-                        >
-                          <Printer className="w-3.5 h-3.5 text-text-secondary" />
-                          <span>Reprint</span>
-                        </button>
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => openReceipt(inv.id)}
+                            disabled={loadingReceipt || deletingId === inv.id}
+                            className="px-3 py-1.5 rounded-xl bg-white border border-workspace-border hover:bg-workspace-hover text-text-primary font-medium text-xs inline-flex items-center gap-1.5 transition-all shadow-sm"
+                            title="Reprint receipt"
+                          >
+                            <Printer className="w-3.5 h-3.5 text-text-secondary" />
+                            <span>Reprint</span>
+                          </button>
+
+                          {isAdmin && (
+                            <button
+                              onClick={() => handleDeleteInvoice(inv)}
+                              disabled={deletingId === inv.id}
+                              className="px-2.5 py-1.5 rounded-xl bg-white border border-rose-200 hover:bg-rose-50 text-rose-600 hover:text-rose-700 font-medium text-xs inline-flex items-center gap-1.5 transition-all shadow-sm disabled:opacity-50"
+                              title="Delete invoice (Admin only)"
+                            >
+                              {deletingId === inv.id ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin text-rose-600" />
+                              ) : (
+                                <Trash2 className="w-3.5 h-3.5" />
+                              )}
+                              <span>Delete</span>
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
