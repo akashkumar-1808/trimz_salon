@@ -316,13 +316,13 @@ async def checkout(
         for_checkout=True
     )
 
-    subtotal = calc_summary.subtotal
-    membership_discount = calc_summary.total_membership_discount
-    manual_discount = calc_summary.total_manual_discount
-    taxable_amount = calc_summary.taxable_amount
-    tax_percentage = calc_summary.tax_percentage
-    tax_amount = calc_summary.tax_amount
-    grand_total = calc_summary.grand_total
+    subtotal = Decimal(str(calc_summary.subtotal))
+    membership_discount = Decimal(str(calc_summary.total_membership_discount))
+    manual_discount = Decimal(str(calc_summary.total_manual_discount))
+    taxable_amount = Decimal(str(calc_summary.taxable_amount))
+    tax_percentage = Decimal(str(calc_summary.tax_percentage))
+    tax_amount = Decimal(str(calc_summary.tax_amount))
+    grand_total = Decimal(str(calc_summary.grand_total))
     membership_applied = calc_summary.membership_applied
 
     customer_membership_id = UUID(membership_applied["id"]) if membership_applied and membership_applied.get("id") else None
@@ -391,26 +391,32 @@ async def checkout(
 
     # 6. Create Sale Items and Durable Membership Usage Ledger
     for item_calc in calc_summary.items:
+        it_unit_price = Decimal(str(item_calc.catalogue_price))
+        it_qty = int(item_calc.quantity)
+        it_member_disc = Decimal(str(item_calc.membership_discount))
+        it_manual_disc = Decimal(str(item_calc.manual_discount))
+        it_line_total = Decimal(str(item_calc.line_total))
+
         sale_item = SaleItem(
             sale_id=new_sale.id,
             service_id=item_calc.service_id,
             item_type=item_calc.item_type,
             service_name_snapshot=item_calc.name,
-            unit_price_snapshot=item_calc.catalogue_price,
-            quantity=item_calc.quantity,
-            discount_amount=item_calc.membership_discount + item_calc.manual_discount,
-            membership_discount_amount=item_calc.membership_discount,
+            unit_price_snapshot=it_unit_price,
+            quantity=it_qty,
+            discount_amount=it_member_disc + it_manual_disc,
+            membership_discount_amount=it_member_disc,
             membership_benefit_id=item_calc.benefit_id,
             is_complimentary=item_calc.is_complimentary,
             tax_amount=Decimal("0.00"),
-            total_price=item_calc.line_total,
+            total_price=it_line_total,
             commission_rate_snapshot=Decimal("0.00")
         )
         db.add(sale_item)
         await db.flush()
 
         # Record usage ledger if benefit consumed
-        if customer_membership_id and (item_calc.benefit_id or item_calc.is_complimentary or item_calc.membership_discount > Decimal("0.00")):
+        if customer_membership_id and (item_calc.benefit_id or item_calc.is_complimentary or it_member_disc > Decimal("0.00")):
             ledger_entry = MembershipUsageLedger(
                 business_id=current_user.business_id,
                 membership_id=customer_membership_id,
@@ -419,8 +425,8 @@ async def checkout(
                 benefit_type="COMPLIMENTARY_SERVICE" if item_calc.is_complimentary else "DISCOUNT",
                 sale_id=new_sale.id,
                 sale_item_id=sale_item.id,
-                quantity_used=item_calc.quantity,
-                discount_applied=item_calc.membership_discount,
+                quantity_used=it_qty,
+                discount_applied=it_member_disc,
                 is_reversal=False
             )
             db.add(ledger_entry)
@@ -477,7 +483,7 @@ async def checkout(
     customer.total_visits = (customer.total_visits or 0) + 1
     current_spend = Decimal(str(customer.total_spend or "0.00"))
     customer.total_spend = current_spend + grand_total
-    customer.loyalty_points = (customer.loyalty_points or 0) + int(grand_total // 100)
+    customer.loyalty_points = (customer.loyalty_points or 0) + int(grand_total // Decimal("100.00"))
     customer.last_visit_at = now_utc
 
     # 9. Audit Log

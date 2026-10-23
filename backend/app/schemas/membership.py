@@ -2,7 +2,7 @@ from typing import List, Optional, Any, Dict
 from uuid import UUID
 from datetime import datetime
 from decimal import Decimal
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_serializer
 
 # --- Plan Schemas ---
 
@@ -205,25 +205,51 @@ class BillCalculationItemOut(BaseModel):
     service_id: Optional[UUID] = None
     item_type: str
     name: str
-    catalogue_price: float
-    unit_price: float
+    catalogue_price: Decimal
+    unit_price: Decimal
     quantity: int
-    gross_total: float
-    membership_discount: float
-    manual_discount: float = 0.0
-    line_total: float
+    gross_total: Decimal
+    membership_discount: Decimal
+    manual_discount: Decimal = Decimal("0.00")
+    line_total: Decimal
     is_complimentary: bool = False
     benefit_id: Optional[UUID] = None
     benefit_name: Optional[str] = None
 
+    @field_serializer(
+        "catalogue_price",
+        "unit_price",
+        "gross_total",
+        "membership_discount",
+        "manual_discount",
+        "line_total",
+        when_used="json"
+    )
+    def serialize_item_decimal(self, v: Decimal) -> float:
+        return float(v) if v is not None else 0.0
+
 class BillCalculationSummary(BaseModel):
-    subtotal: float
-    total_membership_discount: float
-    total_manual_discount: float
-    taxable_amount: float
-    tax_percentage: float
-    tax_amount: float
-    grand_total: float
+    subtotal: Decimal
+    total_membership_discount: Decimal
+    total_manual_discount: Decimal
+    taxable_amount: Decimal
+    tax_percentage: Decimal
+    tax_amount: Decimal
+    grand_total: Decimal
     membership_applied: Optional[Dict[str, Any]] = None
     items: List[BillCalculationItemOut]
+
+    @field_serializer(
+        "subtotal",
+        "total_membership_discount",
+        "total_manual_discount",
+        "taxable_amount",
+        "tax_percentage",
+        "tax_amount",
+        "grand_total",
+        when_used="json"
+    )
+    def serialize_summary_decimal(self, v: Decimal) -> float:
+        return float(v) if v is not None else 0.0
+
 
