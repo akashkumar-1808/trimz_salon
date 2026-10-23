@@ -21,76 +21,7 @@ import {
   AlertTriangle,
   RotateCcw,
 } from 'lucide-react';
-
-interface FeatureDef {
-  id: string;
-  name: string;
-  description: string;
-  requiredPermissions: string[];
-}
-
-const OWNER_FEATURES: FeatureDef[] = [
-  {
-    id: 'dashboard',
-    name: 'Dashboard Overview',
-    description: 'View salon KPI metrics, revenue charts, and operational summary',
-    requiredPermissions: ['dashboard.view'],
-  },
-  {
-    id: 'billing',
-    name: 'Billing & POS Checkout',
-    description: 'Create new tickets, apply percentage discounts, and complete checkout',
-    requiredPermissions: ['billing.view', 'billing.create', 'billing.edit', 'billing.cancel'],
-  },
-  {
-    id: 'customers',
-    name: 'Customer Directory',
-    description: 'Access customer profiles, appointment history, and contact details',
-    requiredPermissions: ['customers.view', 'customers.create', 'customers.edit', 'customers.delete'],
-  },
-  {
-    id: 'services',
-    name: 'Services & Menu Catalog',
-    description: 'View and manage salon services, categories, pricing, and durations',
-    requiredPermissions: ['services.view', 'services.create', 'services.edit', 'services.delete'],
-  },
-  {
-    id: 'sales',
-    name: 'Sales & Transactions',
-    description: 'View completed billing orders, receipt logs, and transaction records',
-    requiredPermissions: ['billing.view'],
-  },
-  {
-    id: 'invoices',
-    name: 'Digital Invoices',
-    description: 'Generate, preview, and share WhatsApp public digital invoices',
-    requiredPermissions: ['invoices.view', 'invoices.manage'],
-  },
-  {
-    id: 'reports',
-    name: 'Reports & Analytics',
-    description: 'Access revenue reports, staff sales analytics, and business insights',
-    requiredPermissions: ['reports.view', 'reports.export'],
-  },
-  {
-    id: 'employees',
-    name: 'Staff Management',
-    description: 'View team members, approve pending registrations, and manage accounts',
-    requiredPermissions: ['employees.view', 'employees.create', 'employees.edit', 'employees.delete'],
-  },
-  {
-    id: 'roles',
-    name: 'Roles & Permissions',
-    description: 'Configure operational role templates and authorization schemes',
-    requiredPermissions: ['roles.view', 'roles.manage'],
-  },
-  {
-    id: 'settings',
-    name: 'Business Settings',
-    description: 'Configure salon profile, receipt branding, currency, and tax parameters',
-    requiredPermissions: ['settings.view', 'settings.edit'],
-  },
-];
+import { CANONICAL_MODULES, ModulePermissionDef } from '@/lib/rbac';
 
 export default function EmployeesPage() {
   const [employees, setEmployees] = useState<any[]>([]);
@@ -205,20 +136,21 @@ export default function EmployeesPage() {
     setEditPermissions(emp.permissions || []);
   };
 
-  const isFeatureEnabled = (feat: FeatureDef): boolean => {
+  const isFeatureEnabled = (feat: ModulePermissionDef): boolean => {
     if (editEmp?.is_owner) return true;
-    return feat.requiredPermissions.every((p) => editPermissions.includes(p));
+    return feat.requiredPermissions.some((p) => editPermissions.includes(p));
   };
 
-  const toggleFeature = (feat: FeatureDef) => {
+  const toggleFeature = (feat: ModulePermissionDef) => {
     if (editEmp?.is_owner) return;
     const currentlyOn = isFeatureEnabled(feat);
     let updated: string[];
     if (currentlyOn) {
-      // Remove permissions of this feature
-      updated = editPermissions.filter((p) => !feat.requiredPermissions.includes(p));
+      // Remove all permissions belonging to this module
+      const removeSet = new Set(feat.requiredPermissions);
+      updated = editPermissions.filter((p) => !removeSet.has(p));
     } else {
-      // Add all required permissions
+      // Add all permissions belonging to this module
       const newPerms = new Set([...editPermissions, ...feat.requiredPermissions]);
       updated = Array.from(newPerms);
     }
@@ -229,17 +161,20 @@ export default function EmployeesPage() {
     if (!editEmp) return;
     setSavingEdit(true);
     try {
-      await api.updateEmployee(editEmp.id, {
+      const updated = await api.updateEmployee(editEmp.id, {
         name: editName,
         phone: editPhone || undefined,
         status: editStatus,
         permissions: editPermissions,
         has_custom_permissions: true,
       });
+      if (updated && updated.id) {
+        setEmployees((prev) => prev.map((e) => (e.id === editEmp.id ? updated : e)));
+      }
       setEditEmp(null);
       await loadData();
     } catch (err: any) {
-      alert(`Failed to save permissions: ${err.message}`);
+      alert(`Failed to save permissions: ${err?.message || 'Unknown error'}`);
     } finally {
       setSavingEdit(false);
     }
@@ -250,13 +185,16 @@ export default function EmployeesPage() {
     if (!confirm(`Reset ${editEmp.name}'s permissions to inherit default role permissions?`)) return;
     setSavingEdit(true);
     try {
-      await api.updateEmployee(editEmp.id, {
+      const updated = await api.updateEmployee(editEmp.id, {
         has_custom_permissions: false,
       });
+      if (updated && updated.id) {
+        setEmployees((prev) => prev.map((e) => (e.id === editEmp.id ? updated : e)));
+      }
       setEditEmp(null);
       await loadData();
     } catch (err: any) {
-      alert(`Failed to reset permissions: ${err.message}`);
+      alert(`Failed to reset permissions: ${err?.message || 'Unknown error'}`);
     } finally {
       setSavingEdit(false);
     }
@@ -775,7 +713,7 @@ export default function EmployeesPage() {
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  {OWNER_FEATURES.map((feat) => {
+                  {CANONICAL_MODULES.map((feat) => {
                     const enabled = isFeatureEnabled(feat);
 
                     return (

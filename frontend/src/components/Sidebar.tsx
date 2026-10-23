@@ -5,29 +5,15 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { api } from '@/lib/api';
-import { 
-  Home, 
-  Receipt, 
-  Calendar,
-  Users, 
-  MessageSquare,
-  Scissors, 
-  UserCheck, 
-  Package,
-  Award,
-  Layers,
-  TrendingDown,
-  BarChart3,
-  FileText, 
-  Settings,
-  LogOut
-} from 'lucide-react';
+import { CANONICAL_MODULES, SECONDARY_NAV_ITEMS } from '@/lib/rbac';
+import { LogOut } from 'lucide-react';
 
 export default function Sidebar() {
   const pathname = usePathname();
   const { user, roles, hasPermission, logout } = useAuth();
   const [pendingStaffCount, setPendingStaffCount] = useState(0);
 
+  // Fetch pending staff count once per session / user change, not on every route transition
   useEffect(() => {
     if (user?.is_owner || hasPermission('employees.view')) {
       api
@@ -38,93 +24,17 @@ export default function Sidebar() {
         })
         .catch(() => {});
     }
-  }, [user, pathname]);
+  }, [user?.id]);
 
+  // Unified canonical navigation
   const navigation = [
-    {
-      name: 'Overview',
-      href: '/portal/dashboard',
-      icon: Home,
-      permission: 'dashboard.view',
-    },
-    {
-      name: 'Billing & POS',
-      href: '/portal/billing',
-      icon: Receipt,
-      permission: ['billing.create', 'billing.view'],
-    },
-    {
-      name: 'Appointments',
-      href: '/portal/appointments',
-      icon: Calendar,
-      permission: 'billing.view',
-    },
-    {
-      name: 'Customers',
-      href: '/portal/customers',
-      icon: Users,
-      permission: 'customers.view',
-    },
-    {
-      name: 'WhatsApp wishes',
-      href: '/portal/whatsapp',
-      icon: MessageSquare,
-      permission: 'billing.view',
-    },
-    {
-      name: 'Services',
-      href: '/portal/services',
-      icon: Scissors,
-      permission: 'services.view',
-    },
-    {
-      name: 'Staff',
-      href: '/portal/employees',
-      icon: UserCheck,
-      permission: 'employees.view',
-    },
-    {
-      name: 'Inventory',
-      href: '/portal/inventory',
-      icon: Package,
-      permission: 'billing.view',
-    },
-    {
-      name: 'Memberships',
-      href: '/portal/memberships',
-      icon: Award,
-      permission: 'billing.view',
-    },
-    {
-      name: 'Packages',
-      href: '/portal/packages',
-      icon: Layers,
-      permission: 'billing.view',
-    },
-    {
-      name: 'Expenses',
-      href: '/portal/expenses',
-      icon: TrendingDown,
-      permission: 'billing.view',
-    },
-    {
-      name: 'Reports',
-      href: '/portal/reports',
-      icon: BarChart3,
-      permission: 'reports.view',
-    },
-    {
-      name: 'Invoices',
-      href: '/portal/invoices',
-      icon: FileText,
-      permission: ['invoices.view', 'billing.view'],
-    },
-    {
-      name: 'Settings',
-      href: '/portal/settings',
-      icon: Settings,
-      permission: 'settings.view',
-    },
+    ...CANONICAL_MODULES.map((m) => ({
+      name: m.id === 'dashboard' ? 'Overview' : m.id === 'employees' ? 'Staff' : m.name,
+      href: m.route,
+      icon: m.icon,
+      permission: m.viewPermission,
+    })),
+    ...SECONDARY_NAV_ITEMS,
   ];
 
   return (

@@ -51,5 +51,8 @@ class TokenResponse(BaseModel):
 
 class MeResponse(BaseModel):
     user: UserOut
-    permissions: List[str]
+    business_id: UUID
+    roles: List[str] = []
+    permissions: List[str] = []
     is_owner: bool
+    status: str = "ACTIVE"

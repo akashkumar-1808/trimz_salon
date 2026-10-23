@@ -2,29 +2,18 @@
 
 import React, { useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { useAuth, getDefaultPortalRoute } from '@/lib/auth-context';
+import { useAuth } from '@/lib/auth-context';
+import { hasRouteAccess, getDefaultPortalRoute } from '@/lib/rbac';
 import Sidebar from '@/components/Sidebar';
 import { Loader2, ShieldAlert, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
-
-const ROUTE_PERMISSIONS: Record<string, string | string[]> = {
-  '/portal/dashboard': 'dashboard.view',
-  '/portal/billing': ['billing.create', 'billing.view'],
-  '/portal/customers': 'customers.view',
-  '/portal/services': 'services.view',
-  '/portal/employees': 'employees.view',
-  '/portal/reports': 'reports.view',
-  '/portal/invoices': ['invoices.view', 'billing.view'],
-  '/portal/settings': 'settings.view',
-  '/portal/roles': 'roles.view',
-};
 
 export default function PortalLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const { user, loading, permissions, hasPermission, refreshPermissions } = useAuth();
+  const { user, loading, permissions } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 
@@ -33,13 +22,6 @@ export default function PortalLayout({
       router.replace('/login');
     }
   }, [user, loading, router]);
-
-  // Refresh permissions on route changes to ensure instant permission propagation
-  useEffect(() => {
-    if (user && !user.is_owner) {
-      refreshPermissions();
-    }
-  }, [pathname]);
 
   if (loading) {
     return (
@@ -59,20 +41,7 @@ export default function PortalLayout({
     return null;
   }
 
-  // Check route-level permission for non-owner accounts
-  let hasRouteAccess = true;
-  if (!user.is_owner) {
-    for (const [routePrefix, reqPerms] of Object.entries(ROUTE_PERMISSIONS)) {
-      if (pathname === routePrefix || pathname.startsWith(routePrefix + '/')) {
-        const perms = Array.isArray(reqPerms) ? reqPerms : [reqPerms];
-        const allowed = perms.some((p) => hasPermission(p));
-        if (!allowed) {
-          hasRouteAccess = false;
-        }
-        break;
-      }
-    }
-  }
+  const isAllowed = hasRouteAccess(pathname, user, permissions);
 
   return (
     <div className="min-h-screen bg-workspace-bg flex">
@@ -81,7 +50,7 @@ export default function PortalLayout({
 
       {/* Main Content Viewport */}
       <div className="flex-1 flex flex-col min-w-0 overflow-y-auto bg-workspace-bg">
-        {hasRouteAccess ? (
+        {isAllowed ? (
           children
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center p-8 text-center max-w-lg mx-auto">

@@ -125,31 +125,77 @@ async def get_current_user(
     return user
 
 def get_user_permissions(user: User) -> List[str]:
-    """Resolves all distinct permission codes assigned to the user."""
+    """
+    Synchronous fallback to read permissions from preloaded user relationships.
+    For authoritative and cache-free evaluation, use resolve_user_permissions(db, user).
+    """
+    if not user or getattr(user, "status", "ACTIVE") != "ACTIVE":
+        return []
     if user.is_owner:
         return ["*"] # Owner has unrestricted access
         
     perms = set()
-    # If the owner configured custom feature permissions directly on this staff member
     if getattr(user, "has_custom_permissions", False):
         for perm in getattr(user, "direct_permissions", []):
             perms.add(perm.code)
     else:
-        # Otherwise inherit from assigned roles
         for role in getattr(user, "roles", []):
             for perm in getattr(role, "permissions", []):
                 perms.add(perm.code)
     return sorted(list(perms))
 
+async def resolve_user_permissions(db: AsyncSession, user: User) -> List[str]:
+    """
+    Authoritatively queries the database for all effective permission codes for the user.
+    Bypasses any stale in-memory relationship caches.
+    - Owner: returns ['*']
+    - Inactive / Suspended / Pending: returns []
+    - Custom permissions enabled: queries user_permissions
+    - Role-based permissions: queries user_roles -> role_permissions -> permissions
+    """
+    if not user or getattr(user, "status", "ACTIVE") != "ACTIVE":
+        return []
+    if user.is_owner:
+        return ["*"]
+
+    from app.models.auth import Permission, UserPermission, UserRole, RolePermission
+
+    perms = set()
+    if getattr(user, "has_custom_permissions", False):
+        res = await db.execute(
+            select(Permission.code)
+            .join(UserPermission, UserPermission.permission_id == Permission.id)
+            .where(UserPermission.user_id == user.id)
+        )
+        for code in res.scalars().all():
+            perms.add(code)
+    else:
+        res = await db.execute(
+            select(Permission.code)
+            .join(RolePermission, RolePermission.permission_id == Permission.id)
+            .join(UserRole, UserRole.role_id == RolePermission.role_id)
+            .where(UserRole.user_id == user.id)
+        )
+        for code in res.scalars().all():
+            perms.add(code)
+
+    return sorted(list(perms))
+
 def require_permission(permission_code: str) -> Callable:
     """Dependency factory that verifies the authenticated user possesses the required permission."""
     async def permission_checker(
-        current_user: User = Depends(get_current_user)
+        current_user: User = Depends(get_current_user),
+        db: AsyncSession = Depends(get_db)
     ) -> User:
+        if getattr(current_user, "status", "ACTIVE") != "ACTIVE":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Account is inactive"
+            )
         if current_user.is_owner:
             return current_user # Owner bypasses all checks
             
-        user_perms = get_user_permissions(current_user)
+        user_perms = await resolve_user_permissions(db, current_user)
         if permission_code not in user_perms and "*" not in user_perms:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,

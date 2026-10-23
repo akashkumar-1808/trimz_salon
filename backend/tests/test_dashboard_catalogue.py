@@ -14,7 +14,7 @@ async def test_catalogue_and_dashboard_integration():
 
     mock_owner = User(
         id=uuid.uuid4(),
-        business_id=uuid.UUID("4f234228-8fc9-4096-b2a6-0ec00f8e9eeb"),
+        business_id=uuid.UUID("11f91464-454f-4574-8155-ed87e1914831"),
         email="owner@trimz.test",
         name="Main Owner",
         is_owner=True,

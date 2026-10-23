@@ -20,6 +20,8 @@ function resolveApiBaseUrl(): string {
 const API_BASE = resolveApiBaseUrl();
 
 class ApiClient {
+  private inFlightRequests: Map<string, Promise<any>> = new Map();
+
   private buildUrl(endpoint: string): string {
     const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
     if (cleanEndpoint.startsWith('/api/v1/')) {
@@ -40,6 +42,7 @@ class ApiClient {
   }
 
   public clearToken() {
+    this.inFlightRequests.clear();
     if (typeof window !== 'undefined') {
       localStorage.removeItem('trimz_token');
       localStorage.removeItem('trimz_user');
@@ -48,7 +51,28 @@ class ApiClient {
   }
 
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+    const method = (options.method || 'GET').toUpperCase();
     const token = this.getToken();
+    const targetUrl = this.buildUrl(endpoint);
+
+    // In-flight deduplication for concurrent identical GET requests
+    if (method === 'GET') {
+      const dedupKey = `${targetUrl}::${token || ''}`;
+      if (this.inFlightRequests.has(dedupKey)) {
+        return this.inFlightRequests.get(dedupKey) as Promise<T>;
+      }
+
+      const promise = this.executeFetch<T>(targetUrl, options, token).finally(() => {
+        this.inFlightRequests.delete(dedupKey);
+      });
+      this.inFlightRequests.set(dedupKey, promise);
+      return promise;
+    }
+
+    return this.executeFetch<T>(targetUrl, options, token);
+  }
+
+  private async executeFetch<T>(targetUrl: string, options: RequestInit, token: string | null): Promise<T> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       ...(options.headers as Record<string, string> || {}),
@@ -58,7 +82,6 @@ class ApiClient {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const targetUrl = this.buildUrl(endpoint);
     const response = await fetch(targetUrl, {
       ...options,
       headers,

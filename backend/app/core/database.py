@@ -73,13 +73,14 @@ connect_args = {
     "ssl": "require"
 }
 
-from sqlalchemy.pool import NullPool
-
 engine = create_async_engine(
     async_db_url,
     echo=False,
     future=True,
-    poolclass=NullPool,
+    pool_size=10,
+    max_overflow=5,
+    pool_recycle=300,
+    pool_pre_ping=True,
     connect_args=connect_args
 )
 

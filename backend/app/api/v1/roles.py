@@ -8,7 +8,7 @@ from app.models.auth import Role, Permission, RolePermission, User
 from app.models.audit import AuditLog
 from app.schemas.role import RoleCreate, RoleUpdate, RoleDetailOut, PermissionGroup
 from app.schemas.auth import PermissionOut
-from app.api.deps import require_permission
+from app.api.deps import require_permission, get_current_user
 
 router = APIRouter(prefix="/roles", tags=["Role & Permission Management"])
 
@@ -27,7 +27,7 @@ async def list_roles(
 @router.get("/permissions/catalogue", response_model=List[PermissionGroup])
 async def get_permissions_catalogue(
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_permission("roles.view"))
+    current_user: User = Depends(get_current_user)
 ):
     result = await db.execute(select(Permission).order_by(Permission.module.asc(), Permission.code.asc()))
     all_perms = result.scalars().all()

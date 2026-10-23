@@ -17,30 +17,18 @@ interface AuthContextType {
   logout: () => Promise<void>;
 }
 
-export function getDefaultPortalRoute(user: User | null, perms: string[]): string {
-  if (!user) return '/login';
-  if (user.is_owner || perms.includes('*') || perms.includes('dashboard.view')) {
-    return '/portal/dashboard';
-  }
-  if (perms.includes('billing.create') || perms.includes('billing.view')) {
-    return '/portal/billing';
-  }
-  if (perms.includes('customers.view')) {
-    return '/portal/customers';
-  }
-  if (perms.includes('services.view')) {
-    return '/portal/services';
-  }
-  if (perms.includes('reports.view')) {
-    return '/portal/reports';
-  }
-  if (perms.includes('employees.view')) {
-    return '/portal/employees';
-  }
-  if (perms.includes('settings.view')) {
-    return '/portal/settings';
-  }
-  return '/portal/dashboard';
+import { getDefaultPortalRoute } from './rbac';
+export { getDefaultPortalRoute };
+
+interface AuthContextType {
+  user: User | null;
+  roles: string[];
+  permissions: string[];
+  loading: boolean;
+  hasPermission: (permissionCode: string) => boolean;
+  refreshPermissions: () => Promise<void>;
+  login: (email: string, pass: string) => Promise<void>;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -52,7 +40,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState<boolean>(true);
   const router = useRouter();
 
-  // Initialize and validate session
+  // Initialize and validate session once on mount
   useEffect(() => {
     let mounted = true;
 
@@ -68,7 +56,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setPermissions(freshData.permissions || []);
           }
         } else {
-          // Check if fallback token exists
+          // Check if fallback token exists in local storage
           const localToken = localStorage.getItem('trimz_token');
           if (localToken) {
             try {
@@ -98,7 +86,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     initAuth();
 
-    // Listen to Supabase Auth state changes (sign in, sign out, token refresh)
+    // Re-validate permissions when user switches back to the application window
+    const handleFocus = () => {
+      if (document.visibilityState === 'visible' && mounted) {
+        const token = localStorage.getItem('trimz_token');
+        if (token) {
+          api.getMe().then((freshData) => {
+            if (mounted && freshData?.user) {
+              setUser(freshData.user);
+              setRoles(freshData.roles || (freshData.user?.roles?.map((r: any) => r.name) || []));
+              setPermissions(freshData.permissions || []);
+            }
+          }).catch(() => {});
+        }
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('visibilitychange', handleFocus);
+
+    // Listen to Supabase Auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_OUT' || !session) {
         api.clearToken();
@@ -109,20 +116,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       } else if (session?.access_token) {
         api.setToken(session.access_token);
-        if (event === 'TOKEN_REFRESHED') {
-          console.info('Supabase Auth token refreshed successfully.');
-        }
       }
     });
 
     return () => {
       mounted = false;
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('visibilitychange', handleFocus);
       subscription.unsubscribe();
     };
   }, []);
 
   const hasPermission = (permissionCode: string): boolean => {
-    if (!user) return false;
+    if (!user || user.status?.toUpperCase() !== 'ACTIVE') return false;
     if (user.is_owner) return true;
     if (permissions.includes('*')) return true;
     return permissions.includes(permissionCode);
@@ -131,6 +137,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const refreshPermissions = async () => {
     try {
       const freshData = await api.getMe();
+      if (!freshData?.user) return;
       setUser(freshData.user);
       const resolvedRoles = freshData.roles || (freshData.user?.roles?.map((r: any) => r.name) || []);
       const resolvedPerms = freshData.permissions || [];

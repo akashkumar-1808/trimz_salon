@@ -12,7 +12,7 @@ from app.models.auth import User, Role, UserRole
 from app.models.audit import AuditLog
 from app.schemas.auth import LoginRequest, TokenResponse, MeResponse, UserOut
 from app.schemas.employee import StaffRegisterRequest
-from app.api.deps import get_current_user, get_user_permissions
+from app.api.deps import get_current_user, get_user_permissions, resolve_user_permissions
 
 import logging
 from sqlalchemy.exc import DBAPIError, OperationalError, InterfaceError
@@ -120,7 +120,7 @@ async def login(credentials: LoginRequest, db: AsyncSession = Depends(get_db)):
                         detail=detail
                     )
 
-                permissions = get_user_permissions(user)
+                permissions = await resolve_user_permissions(db, user)
                 return TokenResponse(
                     access_token=access_token,
                     token_type="bearer",
@@ -163,12 +163,19 @@ async def login(credentials: LoginRequest, db: AsyncSession = Depends(get_db)):
         )
 
 @router.get("/me", response_model=MeResponse)
-async def get_me(current_user: User = Depends(get_current_user)):
-    permissions = get_user_permissions(current_user)
+async def get_me(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    permissions = await resolve_user_permissions(db, current_user)
+    role_names = [r.name for r in getattr(current_user, "roles", [])]
     return MeResponse(
         user=UserOut.model_validate(current_user),
+        business_id=current_user.business_id,
+        roles=role_names,
         permissions=permissions,
-        is_owner=current_user.is_owner
+        is_owner=current_user.is_owner,
+        status=current_user.status
     )
 
 @router.post("/register-staff", status_code=status.HTTP_201_CREATED)

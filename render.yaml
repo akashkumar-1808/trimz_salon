@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: trimz-backend
+    name: trimz-salon
     runtime: python
     rootDir: backend
     buildCommand: pip install -r requirements.txt

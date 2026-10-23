@@ -11,9 +11,15 @@ from app.core.database import get_db
 from app.models.auth import User, Role, UserRole, Permission, UserPermission
 from app.models.audit import AuditLog
 from app.schemas.employee import EmployeeCreate, EmployeeUpdate, EmployeeOut, AssignRoleRequest
-from app.api.deps import get_current_user, require_permission, get_user_permissions
+from app.api.deps import get_current_user, require_permission, get_user_permissions, resolve_user_permissions
 
 router = APIRouter(prefix="/employees", tags=["Employee Management"])
+
+async def format_employee_out_async(db: AsyncSession, u: User) -> EmployeeOut:
+    out = EmployeeOut.model_validate(u)
+    out.permissions = await resolve_user_permissions(db, u)
+    out.has_custom_permissions = getattr(u, "has_custom_permissions", False)
+    return out
 
 def format_employee_out(u: User) -> EmployeeOut:
     out = EmployeeOut.model_validate(u)
@@ -33,7 +39,7 @@ async def list_employees(
         .order_by(User.is_owner.desc(), User.created_at.desc())
     )
     users = result.scalars().all()
-    return [format_employee_out(u) for u in users]
+    return [await format_employee_out_async(db, u) for u in users]
 
 @router.post("", response_model=EmployeeOut, status_code=status.HTTP_201_CREATED)
 @router.post("/", response_model=EmployeeOut, status_code=status.HTTP_201_CREATED, include_in_schema=False)
@@ -143,9 +149,8 @@ async def create_employee(
     ))
 
     await db.commit()
-    result = await db.execute(select(User).where(User.id == new_user.id))
-    new_user = result.scalar_one()
-    return format_employee_out(new_user)
+    await db.refresh(new_user)
+    return await format_employee_out_async(db, new_user)
 
 @router.get("/{employee_id}", response_model=EmployeeOut)
 async def get_employee(
@@ -159,7 +164,7 @@ async def get_employee(
     emp = result.scalar_one_or_none()
     if not emp:
         raise HTTPException(status_code=404, detail="Employee not found")
-    return format_employee_out(emp)
+    return await format_employee_out_async(db, emp)
 
 @router.patch("/{employee_id}", response_model=EmployeeOut)
 async def update_employee(
@@ -234,6 +239,8 @@ async def update_employee(
         elif data.has_custom_permissions is False:
             emp.has_custom_permissions = False
             await db.execute(delete(UserPermission).where(UserPermission.user_id == emp.id))
+        elif data.has_custom_permissions is True:
+            emp.has_custom_permissions = True
 
     db.add(AuditLog(
         business_id=current_user.business_id,
@@ -245,9 +252,8 @@ async def update_employee(
     ))
 
     await db.commit()
-    result = await db.execute(select(User).where(User.id == emp.id))
-    emp = result.scalar_one()
-    return format_employee_out(emp)
+    await db.refresh(emp)
+    return await format_employee_out_async(db, emp)
 
 @router.post("/{employee_id}/activate", response_model=EmployeeOut)
 async def activate_employee(
@@ -273,9 +279,8 @@ async def activate_employee(
     ))
 
     await db.commit()
-    result = await db.execute(select(User).where(User.id == emp.id))
-    emp = result.scalar_one()
-    return format_employee_out(emp)
+    await db.refresh(emp)
+    return await format_employee_out_async(db, emp)
 
 @router.delete("/{employee_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def deactivate_employee(
