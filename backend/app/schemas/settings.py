@@ -23,6 +23,7 @@ class BusinessOut(BaseModel):
     timezone: str
     bill_prefix: str
     logo_url: Optional[str] = None
+    font_family: Optional[str] = "Inter"
     is_active: bool
     created_at: datetime
     updated_at: datetime
@@ -47,6 +48,7 @@ class BusinessUpdate(BaseModel):
     currency_symbol: Optional[str] = None
     bill_prefix: Optional[str] = None
     logo_url: Optional[str] = None
+    font_family: Optional[str] = None
 
 class ProfileUpdate(BaseModel):
     name: Optional[str] = None

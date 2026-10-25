@@ -62,7 +62,8 @@ export default function ServicesPage() {
         api.getServices(undefined, undefined, false),
       ]);
       setCategories(cats);
-      setServices(svcs);
+      const sorted = (svcs || []).slice().sort((a: any, b: any) => (a.display_order ?? 9999) - (b.display_order ?? 9999));
+      setServices(sorted);
       if (cats.length > 0 && !svcCatId) {
         setSvcCatId(cats[0].id);
       }
@@ -219,7 +220,7 @@ export default function ServicesPage() {
       );
     }
     return true;
-  });
+  }).sort((a, b) => (a.display_order ?? 9999) - (b.display_order ?? 9999));
 
   return (
     <div className="flex-1 flex flex-col min-h-screen bg-workspace-bg">

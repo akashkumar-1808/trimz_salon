@@ -73,6 +73,7 @@ export interface Service {
   combo_items?: string;
   is_active: boolean;
   is_deleted?: boolean;
+  display_order?: number;
   created_at: string;
 }
 

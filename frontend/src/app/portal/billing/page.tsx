@@ -95,7 +95,8 @@ export default function BillingPosPage() {
           api.getMembershipPlans().catch(() => []),
         ]);
         setCategories(cats || []);
-        setServices(svcs || []);
+        const sortedSvcs = (svcs || []).slice().sort((a: any, b: any) => (a.display_order ?? 9999) - (b.display_order ?? 9999));
+        setServices(sortedSvcs);
         setStaffMembers(emps || []);
         setMembershipPlans(plans || []);
       } catch (err) {
@@ -252,7 +253,7 @@ export default function BillingPosPage() {
     }
 
     return true;
-  });
+  }).sort((a, b) => (a.display_order ?? 9999) - (b.display_order ?? 9999));
 
   // Cart operations
   const addToCart = (svc: Service) => {

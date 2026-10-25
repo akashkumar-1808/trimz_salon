@@ -56,6 +56,7 @@ class Business(Base):
     timezone = Column(String(50), nullable=False, default="Asia/Kolkata")
     bill_prefix = Column(String(10), nullable=False, default="TZ")
     logo_url = Column(Text, nullable=True)
+    font_family = Column(String(100), nullable=True, default="Inter")
     is_active = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
