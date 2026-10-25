@@ -165,9 +165,14 @@ class ApiClient {
   }
 
   // Customers
-  async getCustomers(query: string = '') {
-    const q = query ? `?query=${encodeURIComponent(query)}&search=${encodeURIComponent(query)}` : '';
-    return this.request<any[]>(`/customers/${q}`);
+  async getCustomers(query: string = '', limit = 500) {
+    const params = new URLSearchParams();
+    if (query) {
+      params.append('query', query);
+      params.append('search', query);
+    }
+    params.append('limit', String(limit));
+    return this.request<any[]>(`/customers?${params.toString()}`);
   }
 
   async getCustomer(id: string) {
@@ -350,10 +355,11 @@ class ApiClient {
   }
 
   // Invoices
-  async getInvoices(limit = 100, stylistId?: string, search?: string) {
+  async getInvoices(limit = 500, stylistId?: string, search?: string, staffName?: string) {
     const params = new URLSearchParams();
     params.append('limit', String(limit));
     if (stylistId) params.append('stylist_id', stylistId);
+    if (staffName) params.append('staff_name', staffName);
     if (search) params.append('search', search);
     return this.request<any[]>(`/invoices?${params.toString()}`);
   }

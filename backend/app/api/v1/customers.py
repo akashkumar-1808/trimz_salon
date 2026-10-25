@@ -34,10 +34,11 @@ async def search_customers(
     return result.scalars().all()
 
 @router.get("", response_model=List[CustomerOut])
+@router.get("/", response_model=List[CustomerOut], include_in_schema=False)
 async def list_customers(
     search: Optional[str] = None,
     query: Optional[str] = None,
-    limit: int = 50,
+    limit: int = 500,
     offset: int = 0,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_permission("customers.view"))

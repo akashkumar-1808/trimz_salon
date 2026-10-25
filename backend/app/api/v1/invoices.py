@@ -23,12 +23,16 @@ from app.services.whatsapp_dispatcher import get_or_generate_invoice_image, disp
 
 router = APIRouter(prefix="/invoices", tags=["Invoicing"])
 
+from sqlalchemy.orm import selectinload
+
 @router.get("", response_model=List[InvoiceOut])
+@router.get("/", response_model=List[InvoiceOut], include_in_schema=False)
 async def list_invoices(
     search: Optional[str] = None,
     stylist_id: Optional[UUID] = None,
     staff_id: Optional[UUID] = None,
-    limit: int = 100,
+    staff_name: Optional[str] = None,
+    limit: int = 500,
     offset: int = 0,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_permission("billing.view"))
@@ -37,11 +41,18 @@ async def list_invoices(
     stmt = (
         select(Invoice)
         .join(Sale, Invoice.sale_id == Sale.id)
+        .options(
+            selectinload(Invoice.sale).selectinload(Sale.customer),
+            selectinload(Invoice.sale).selectinload(Sale.operator),
+            selectinload(Invoice.sale).selectinload(Sale.staff)
+        )
         .where(Invoice.business_id == current_user.business_id)
         .order_by(Invoice.created_at.desc())
     )
     if eff_stylist_id:
         stmt = stmt.where(Sale.staff_id == eff_stylist_id)
+    if staff_name:
+        stmt = stmt.where(Sale.staff_name.ilike(f"%{staff_name.strip()}%"))
     if search:
         s = f"%{search.strip()}%"
         stmt = stmt.join(Customer, Sale.customer_id == Customer.id, isouter=True).where(
