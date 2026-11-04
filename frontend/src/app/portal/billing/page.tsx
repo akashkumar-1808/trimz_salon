@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import Topbar from '@/components/Topbar';
 import ReceiptModal from '@/components/ReceiptModal';
 import { api } from '@/lib/api';
@@ -23,6 +23,32 @@ import {
   Clock,
   AlertTriangle
 } from 'lucide-react';
+
+// Authoritative canonical categories in official menu order (combining Men's and Women's menus)
+const CANONICAL_CATEGORIES: readonly string[] = [
+  'Hair Cut',
+  'Hair Cut Combo',
+  'Massage',
+  'D-Tan Pack',
+  'Facial',
+  'Coloring',
+  'Hair Spa',
+  'Straightening Treatment',
+  'Keratin Treatment',
+  'Manicure',
+  'Pedicure',
+  'Threading',
+  'D-Tan & Bleach',
+  'Facials',
+  'Face Cleanup',
+  'Hair Colouring',
+  'Hair Treatments',
+  'Hair Spa Treatments',
+  'Hair Straightening',
+  'Massage Services',
+  'Waxing',
+  'D-Tan',
+];
 
 export default function BillingPosPage() {
   // Service catalogue state
@@ -90,12 +116,13 @@ export default function BillingPosPage() {
       try {
         const [cats, svcs, emps, plans] = await Promise.all([
           api.getCategories(),
-          api.getServices(),
+          api.getServices(undefined, undefined, true),
           api.getEmployees().catch(() => []),
           api.getMembershipPlans().catch(() => []),
         ]);
         setCategories(cats || []);
-        const sortedSvcs = (svcs || []).slice().sort((a: any, b: any) => (a.display_order ?? 9999) - (b.display_order ?? 9999));
+        const activeSvcs = (svcs || []).filter((s: Service) => !s.is_deleted && s.is_active !== false);
+        const sortedSvcs = activeSvcs.slice().sort((a: any, b: any) => (a.display_order ?? 9999) - (b.display_order ?? 9999));
         setServices(sortedSvcs);
         setStaffMembers(emps || []);
         setMembershipPlans(plans || []);
@@ -221,39 +248,111 @@ export default function BillingPosPage() {
     return () => clearTimeout(timer);
   }, [cart, discountPercent, applyGst, customerPhone, selectedCustomer, membershipData]);
 
-  // Filtered services matching search, gender, and category
-  const filteredServices = services.filter((svc) => {
-    // Gender filter
-    if (selectedGender === 'Men') {
-      if (svc.audience === 'Female') return false;
-      if (svc.target_gender && svc.target_gender.toLowerCase() === 'female') return false;
-    } else if (selectedGender === 'Women') {
-      if (svc.audience === 'Male') return false;
-      if (svc.target_gender && svc.target_gender.toLowerCase() === 'male') return false;
+  // Map category_id -> category_name
+  const categoryIdToNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const cat of categories) {
+      if (cat.id && cat.name) {
+        map.set(cat.id, cat.name);
+      }
     }
+    return map;
+  }, [categories]);
 
-    // Category filter
-    if (selectedCategory !== 'All') {
-      const catObj = categories.find((c) => c.id === svc.category_id || c.name === selectedCategory);
-      if (catObj) {
-        if (catObj.name !== selectedCategory && svc.category_id !== selectedCategory) return false;
-      } else if (svc.category_name !== selectedCategory) {
-        return false;
+  // Map category_name -> Set of category_ids (handling Men and Women shared names)
+  const categoryNameToIdsMap = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    for (const cat of categories) {
+      if (cat.name) {
+        if (!map.has(cat.name)) {
+          map.set(cat.name, new Set());
+        }
+        if (cat.id) {
+          map.get(cat.name)!.add(cat.id);
+        }
+      }
+    }
+    return map;
+  }, [categories]);
+
+  // Canonical, non-empty, unique category filter chips starting with 'All'
+  const categoryNames = useMemo(() => {
+    const activeCategoryNames = new Set<string>();
+    for (const svc of services) {
+      if (svc.is_deleted || svc.is_active === false) continue;
+      const catName = svc.category_name || (svc.category_id ? categoryIdToNameMap.get(svc.category_id) : undefined);
+      if (catName) {
+        activeCategoryNames.add(catName);
       }
     }
 
-    // Search query filter
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      const matchName = svc.name.toLowerCase().includes(q);
-      const matchCat = svc.category_name ? svc.category_name.toLowerCase().includes(q) : false;
-      const matchVariant = svc.variant_name ? svc.variant_name.toLowerCase().includes(q) : false;
-      const matchCombo = svc.combo_items ? svc.combo_items.toLowerCase().includes(q) : false;
-      return matchName || matchCat || matchVariant || matchCombo;
+    const result: string[] = ['All'];
+
+    // 1. Add canonical categories in exact authoritative menu order if they contain active services
+    for (const canonicalName of CANONICAL_CATEGORIES) {
+      if (activeCategoryNames.has(canonicalName)) {
+        result.push(canonicalName);
+      }
     }
 
-    return true;
-  }).sort((a, b) => (a.display_order ?? 9999) - (b.display_order ?? 9999));
+    // 2. Fallback: include any legitimate database category with active services not already listed
+    for (const cat of categories) {
+      if (cat.name && !result.includes(cat.name) && activeCategoryNames.has(cat.name)) {
+        result.push(cat.name);
+      }
+    }
+
+    return result;
+  }, [services, categories, categoryIdToNameMap]);
+
+  // Auto-reset category filter if selected category is no longer valid
+  useEffect(() => {
+    if (selectedCategory !== 'All' && categoryNames.length > 1 && !categoryNames.includes(selectedCategory)) {
+      setSelectedCategory('All');
+    }
+  }, [categoryNames, selectedCategory]);
+
+  // Filtered services matching search, gender, and category
+  const filteredServices = useMemo(() => {
+    return services.filter((svc) => {
+      // 0. POS Active check
+      if (svc.is_deleted || svc.is_active === false) return false;
+
+      // 1. Gender filter
+      if (selectedGender === 'Men') {
+        if (svc.audience === 'Female') return false;
+        if (svc.target_gender && svc.target_gender.toLowerCase() === 'female') return false;
+      } else if (selectedGender === 'Women') {
+        if (svc.audience === 'Male') return false;
+        if (svc.target_gender && svc.target_gender.toLowerCase() === 'male') return false;
+      }
+
+      // 2. Category filter
+      if (selectedCategory !== 'All') {
+        const catName = svc.category_name || (svc.category_id ? categoryIdToNameMap.get(svc.category_id) : undefined);
+        const matchingIds = categoryNameToIdsMap.get(selectedCategory);
+        const isIdMatch = Boolean(svc.category_id && matchingIds?.has(svc.category_id));
+        const isNameMatch = Boolean(catName && catName === selectedCategory);
+
+        if (!isIdMatch && !isNameMatch) {
+          return false;
+        }
+      }
+
+      // 3. Search query filter
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const catName = svc.category_name || (svc.category_id ? categoryIdToNameMap.get(svc.category_id) : '');
+        const matchName = svc.name.toLowerCase().includes(q);
+        const matchCat = catName ? catName.toLowerCase().includes(q) : false;
+        const matchVariant = svc.variant_name ? svc.variant_name.toLowerCase().includes(q) : false;
+        const matchCombo = svc.combo_items ? svc.combo_items.toLowerCase().includes(q) : false;
+        return matchName || matchCat || matchVariant || matchCombo;
+      }
+
+      return true;
+    }).sort((a, b) => (a.display_order ?? 9999) - (b.display_order ?? 9999));
+  }, [services, selectedGender, selectedCategory, searchQuery, categoryIdToNameMap, categoryNameToIdsMap]);
 
   // Cart operations
   const addToCart = (svc: Service) => {
@@ -463,8 +562,6 @@ export default function BillingPosPage() {
     }
   };
 
-  // Category pill list from backend
-  const categoryNames = ['All', ...categories.map((c) => c.name)];
 
   return (
     <div className="flex-1 flex flex-col min-h-screen bg-[#F7F6F5]">
@@ -615,7 +712,7 @@ export default function BillingPosPage() {
                         )}
                       </h3>
                       <p className="text-xs text-[#737373] mt-1 font-normal">
-                        {svc.category_name || 'Service'} · {svc.audience || 'Unisex'} · {svc.duration_minutes ? `${svc.duration_minutes} min` : 'Duration not set'}
+                        {svc.category_name || (svc.category_id ? categoryIdToNameMap.get(svc.category_id) : 'Service')} · {svc.audience || 'Unisex'} · {svc.duration_minutes ? `${svc.duration_minutes} min` : 'Duration not set'}
                       </p>
                     </div>
 
