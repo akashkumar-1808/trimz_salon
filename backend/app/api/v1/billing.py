@@ -1,4 +1,5 @@
 import re
+import logging
 from urllib.parse import quote
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -7,6 +8,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_
+from sqlalchemy.exc import IntegrityError
 from app.core.database import get_db
 from app.models.business import Business
 from app.models.customer import Customer
@@ -30,10 +32,13 @@ from app.schemas.membership import (
 )
 from app.models.membership import MembershipUsageLedger
 from app.services.membership import calculate_membership_benefits
+from app.services.sequence import get_next_sale_and_invoice_numbers
 from app.api.deps import require_permission
 from app.services.public_invoice import create_public_invoice_token, build_public_invoice_url
 # Deferred future feature imports (preserved for on-demand/future releases)
 from app.services.whatsapp_dispatcher import get_or_generate_invoice_image, dispatch_invoice_whatsapp
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/billing", tags=["Billing & POS Checkout"])
 
@@ -238,13 +243,15 @@ async def checkout(
     if not data.items:
         raise HTTPException(status_code=400, detail="Cannot checkout an empty cart")
 
-    # Fetch Business Profile
-    biz_res = await db.execute(select(Business).where(Business.id == current_user.business_id))
+    # Fetch Business Profile with pessimistic row lock to serialize concurrent checkouts
+    biz_res = await db.execute(
+        select(Business).where(Business.id == current_user.business_id).with_for_update()
+    )
     business = biz_res.scalar_one_or_none()
     if not business:
         raise HTTPException(status_code=500, detail="Business profile not found")
 
-    # 1. Check Idempotency Key
+    # 1. Check Idempotency Key under business lock
     if idempotency_key:
         existing_sale = await db.execute(
             select(Sale).where(
@@ -256,9 +263,13 @@ async def checkout(
         if existing:
             # Return existing sale
             inv_res = await db.execute(select(Invoice).where(Invoice.sale_id == existing.id))
-            inv = inv_res.scalar_one()
+            inv = inv_res.scalar_one_or_none()
+            if not inv:
+                raise HTTPException(status_code=500, detail="Associated invoice not found for idempotent sale")
             cust_res = await db.execute(select(Customer).where(Customer.id == existing.customer_id))
-            cust = cust_res.scalar_one()
+            cust = cust_res.scalar_one_or_none()
+            if not cust:
+                raise HTTPException(status_code=500, detail="Associated customer not found for idempotent sale")
             # Safely create or get public invoice token
             token_rec, raw_token = await create_public_invoice_token(db, inv)
             await db.commit()
@@ -351,129 +362,186 @@ async def checkout(
     final_staff_id = stylist_user.id if stylist_user else None
     final_staff_name = stylist_user.name if stylist_user else (data.staff_name.strip() if data.staff_name else None)
 
-    # 5. Generate Sequential Numbers
+    # 5. Generate Sequential Numbers & Save Authoritative Records with Conflict Retry Loop
     now_utc = datetime.now(timezone.utc)
     date_str = now_utc.strftime("%Y%m%d")
     month_str = now_utc.strftime("%Y%m")
 
-    # Count today's sales for sequence
-    count_res = await db.execute(
-        select(func.count(Sale.id)).where(Sale.business_id == current_user.business_id)
-    )
-    total_sales_count = (count_res.scalar() or 0) + 1
+    max_retries = 5
+    new_sale = None
+    new_invoice = None
+    final_sale_number = None
+    final_invoice_number = None
+    candidate_seq_floor = 1
 
-    sale_number = f"{business.bill_prefix}-{date_str}-{total_sales_count:04d}"
-    invoice_number = f"TRIMZ-{month_str}-{total_sales_count:04d}"
-
-    # 6. Create Authoritative Sale with Membership Snapshot
-    new_sale = Sale(
-        business_id=current_user.business_id,
-        customer_id=customer.id,
-        customer_membership_id=customer_membership_id,
-        operator_id=current_user.id,
-        staff_id=final_staff_id,
-        staff_name=final_staff_name,
-        sale_number=sale_number,
-        client_request_id=idempotency_key,
-        status="COMPLETED",
-        subtotal=subtotal,
-        discount_amount=manual_discount,
-        discount_reason=data.discount_reason,
-        membership_discount_amount=membership_discount,
-        membership_snapshot=membership_applied,
-        tax_amount=tax_amount,
-        tax_percentage=tax_percentage,
-        total_amount=grand_total,
-        notes=data.notes
-    )
-    db.add(new_sale)
-    await db.flush()
-
-    # 6. Create Sale Items and Durable Membership Usage Ledger
-    for item_calc in calc_summary.items:
-        it_unit_price = Decimal(str(item_calc.catalogue_price))
-        it_qty = int(item_calc.quantity)
-        it_member_disc = Decimal(str(item_calc.membership_discount))
-        it_manual_disc = Decimal(str(item_calc.manual_discount))
-        it_line_total = Decimal(str(item_calc.line_total))
-
-        sale_item = SaleItem(
-            sale_id=new_sale.id,
-            service_id=item_calc.service_id,
-            item_type=item_calc.item_type,
-            service_name_snapshot=item_calc.name,
-            unit_price_snapshot=it_unit_price,
-            quantity=it_qty,
-            discount_amount=it_member_disc + it_manual_disc,
-            membership_discount_amount=it_member_disc,
-            membership_benefit_id=item_calc.benefit_id,
-            is_complimentary=item_calc.is_complimentary,
-            tax_amount=Decimal("0.00"),
-            total_price=it_line_total,
-            commission_rate_snapshot=Decimal("0.00")
+    for attempt in range(max_retries):
+        sale_number, invoice_number, seq_used = await get_next_sale_and_invoice_numbers(
+            db=db,
+            business=business,
+            date_str=date_str,
+            month_str=month_str,
+            min_seq=candidate_seq_floor
         )
-        db.add(sale_item)
-        await db.flush()
 
-        # Record usage ledger if benefit consumed
-        if customer_membership_id and (item_calc.benefit_id or item_calc.is_complimentary or it_member_disc > Decimal("0.00")):
-            ledger_entry = MembershipUsageLedger(
-                business_id=current_user.business_id,
-                membership_id=customer_membership_id,
-                benefit_id=item_calc.benefit_id,
-                benefit_name=item_calc.benefit_name or "VIP Membership Perk",
-                benefit_type="COMPLIMENTARY_SERVICE" if item_calc.is_complimentary else "DISCOUNT",
-                sale_id=new_sale.id,
-                sale_item_id=sale_item.id,
-                quantity_used=it_qty,
-                discount_applied=it_member_disc,
-                is_reversal=False
+        try:
+            async with db.begin_nested():
+                # 6. Create Authoritative Sale with Membership Snapshot
+                sale_record = Sale(
+                    business_id=current_user.business_id,
+                    customer_id=customer.id,
+                    customer_membership_id=customer_membership_id,
+                    operator_id=current_user.id,
+                    staff_id=final_staff_id,
+                    staff_name=final_staff_name,
+                    sale_number=sale_number,
+                    client_request_id=idempotency_key,
+                    status="COMPLETED",
+                    subtotal=subtotal,
+                    discount_amount=manual_discount,
+                    discount_reason=data.discount_reason,
+                    membership_discount_amount=membership_discount,
+                    membership_snapshot=membership_applied,
+                    tax_amount=tax_amount,
+                    tax_percentage=tax_percentage,
+                    total_amount=grand_total,
+                    notes=data.notes
+                )
+                db.add(sale_record)
+                await db.flush()
+
+                # Create Sale Items and Durable Membership Usage Ledger
+                for item_calc in calc_summary.items:
+                    it_unit_price = Decimal(str(item_calc.catalogue_price))
+                    it_qty = int(item_calc.quantity)
+                    it_member_disc = Decimal(str(item_calc.membership_discount))
+                    it_manual_disc = Decimal(str(item_calc.manual_discount))
+                    it_line_total = Decimal(str(item_calc.line_total))
+
+                    sale_item = SaleItem(
+                        sale_id=sale_record.id,
+                        service_id=item_calc.service_id,
+                        item_type=item_calc.item_type,
+                        service_name_snapshot=item_calc.name,
+                        unit_price_snapshot=it_unit_price,
+                        quantity=it_qty,
+                        discount_amount=it_member_disc + it_manual_disc,
+                        membership_discount_amount=it_member_disc,
+                        membership_benefit_id=item_calc.benefit_id,
+                        is_complimentary=item_calc.is_complimentary,
+                        tax_amount=Decimal("0.00"),
+                        total_price=it_line_total,
+                        commission_rate_snapshot=Decimal("0.00")
+                    )
+                    db.add(sale_item)
+                    await db.flush()
+
+                    # Record usage ledger if benefit consumed
+                    if customer_membership_id and (item_calc.benefit_id or item_calc.is_complimentary or it_member_disc > Decimal("0.00")):
+                        ledger_entry = MembershipUsageLedger(
+                            business_id=current_user.business_id,
+                            membership_id=customer_membership_id,
+                            benefit_id=item_calc.benefit_id,
+                            benefit_name=item_calc.benefit_name or "VIP Membership Perk",
+                            benefit_type="COMPLIMENTARY_SERVICE" if item_calc.is_complimentary else "DISCOUNT",
+                            sale_id=sale_record.id,
+                            sale_item_id=sale_item.id,
+                            quantity_used=it_qty,
+                            discount_applied=it_member_disc,
+                            is_reversal=False
+                        )
+                        db.add(ledger_entry)
+
+                # Record Payments
+                if data.payments:
+                    for p in data.payments:
+                        pm = Payment(
+                            business_id=current_user.business_id,
+                            sale_id=sale_record.id,
+                            amount=Decimal(str(p.amount)),
+                            payment_method=p.payment_method,
+                            payment_provider=p.payment_provider,
+                            status="SUCCESS",
+                            transaction_reference=p.transaction_reference,
+                            notes=p.notes
+                        )
+                        db.add(pm)
+                else:
+                    pm = Payment(
+                        business_id=current_user.business_id,
+                        sale_id=sale_record.id,
+                        amount=grand_total,
+                        payment_method="UPI",
+                        payment_provider="PhonePe",
+                        status="SUCCESS"
+                    )
+                    db.add(pm)
+
+                # 7. Create Invoice
+                invoice_record = Invoice(
+                    business_id=current_user.business_id,
+                    sale_id=sale_record.id,
+                    invoice_number=invoice_number,
+                    status="ISSUED",
+                    subtotal=subtotal,
+                    discount_amount=manual_discount + membership_discount,
+                    tax_amount=tax_amount,
+                    total_amount=grand_total,
+                    currency=business.currency or "INR"
+                )
+                db.add(invoice_record)
+                await db.flush()
+
+                new_sale = sale_record
+                new_invoice = invoice_record
+                final_sale_number = sale_number
+                final_invoice_number = invoice_number
+                break
+
+        except IntegrityError as err:
+            logger.warning(
+                f"Checkout integrity conflict (attempt {attempt + 1}/{max_retries}) on sale {sale_number} / inv {invoice_number}: {err}."
             )
-            db.add(ledger_entry)
+            # If an idempotency key was supplied, check if another transaction won the race and committed this sale
+            if idempotency_key:
+                race_sale_res = await db.execute(
+                    select(Sale).where(
+                        Sale.business_id == current_user.business_id,
+                        Sale.client_request_id == idempotency_key
+                    )
+                )
+                race_sale = race_sale_res.scalar_one_or_none()
+                if race_sale:
+                    inv_res = await db.execute(select(Invoice).where(Invoice.sale_id == race_sale.id))
+                    race_inv = inv_res.scalar_one_or_none()
+                    if race_inv:
+                        token_rec, raw_token = await create_public_invoice_token(db, race_inv)
+                        await db.commit()
+                        public_url = build_public_invoice_url(raw_token)
+                        should_open_wa = data.open_whatsapp if data.open_whatsapp is not None else data.send_whatsapp
+                        wa_receipt_text = generate_whatsapp_receipt_text(business, race_sale, race_inv, customer, public_invoice_url=public_url)
+                        wa_url, wa_c2c = build_whatsapp_click_to_chat(customer.phone, wa_receipt_text, should_open_wa)
+                        receipt = generate_thermal_receipt_text(business, race_sale, race_inv, customer)
+                        return CheckoutResponse(
+                            success=True,
+                            sale=SaleOut.model_validate(race_sale),
+                            invoice=InvoiceOut.model_validate(race_inv),
+                            receipt_text=receipt,
+                            whatsapp_url=wa_url,
+                            whatsapp_click_to_chat=wa_c2c,
+                            public_invoice_url=public_url,
+                            public_invoice_token=raw_token,
+                            whatsapp_delivery=None
+                        )
 
-    # 6. Record Payments
-    payments_to_create = []
-    if data.payments:
-        for p in data.payments:
-            pm = Payment(
-                business_id=current_user.business_id,
-                sale_id=new_sale.id,
-                amount=Decimal(str(p.amount)),
-                payment_method=p.payment_method,
-                payment_provider=p.payment_provider,
-                status="SUCCESS",
-                transaction_reference=p.transaction_reference,
-                notes=p.notes
-            )
-            db.add(pm)
-            payments_to_create.append(pm)
-    else:
-        # Default single payment
-        pm = Payment(
-            business_id=current_user.business_id,
-            sale_id=new_sale.id,
-            amount=grand_total,
-            payment_method="UPI",
-            payment_provider="PhonePe",
-            status="SUCCESS"
-        )
-        db.add(pm)
-        payments_to_create.append(pm)
+            if attempt == max_retries - 1:
+                raise HTTPException(
+                    status_code=500,
+                    detail="Database conflict while generating unique invoice/sale number. Please retry checkout."
+                )
+            candidate_seq_floor = seq_used + 1
 
-    # 7. Create Invoice
-    new_invoice = Invoice(
-        business_id=current_user.business_id,
-        sale_id=new_sale.id,
-        invoice_number=invoice_number,
-        status="ISSUED",
-        subtotal=subtotal,
-        discount_amount=manual_discount + membership_discount,
-        tax_amount=tax_amount,
-        total_amount=grand_total,
-        currency=business.currency
-    )
-    db.add(new_invoice)
-    await db.flush()
+    if not new_sale or not new_invoice:
+        raise HTTPException(status_code=500, detail="Checkout failed to generate sale and invoice records.")
 
     # Generate public invoice token and hash
     token_rec, raw_token = await create_public_invoice_token(db, new_invoice)
@@ -494,8 +562,8 @@ async def checkout(
         entity_name="sale",
         entity_id=new_sale.id,
         details={
-            "sale_number": sale_number,
-            "invoice_number": invoice_number,
+            "sale_number": final_sale_number,
+            "invoice_number": final_invoice_number,
             "amount": str(grand_total),
             "customer": customer.name
         }

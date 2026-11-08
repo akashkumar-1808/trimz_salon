@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, Numeric, DateTime, ForeignKey, Text, Boolean, Integer
+from sqlalchemy import Column, String, Numeric, DateTime, ForeignKey, Text, Boolean, Integer, UniqueConstraint
 from sqlalchemy.dialects.postgresql import ENUM
 from sqlalchemy.orm import relationship
 from app.core.database import Base
@@ -8,6 +8,9 @@ from app.models.business import GUID
 
 class Invoice(Base):
     __tablename__ = "invoices"
+    __table_args__ = (
+        UniqueConstraint("business_id", "invoice_number", name="uq_invoices_number"),
+    )
 
     id = Column(GUID, primary_key=True, default=uuid.uuid4)
     business_id = Column(GUID, ForeignKey("businesses.id", ondelete="RESTRICT"), nullable=False, index=True)
