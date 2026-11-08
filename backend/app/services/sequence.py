@@ -156,3 +156,4 @@ async def get_next_sale_and_invoice_numbers(
             continue
 
         return candidate_sale_number, candidate_invoice_number, candidate_seq
+
